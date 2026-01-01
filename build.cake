@@ -80,6 +80,26 @@ Task("Pack")
             });
     });
 
+Task("Publish")
+    .Description("Publishes NuGet packages to GitHub Packages.")
+    .Does(() =>
+    {
+        var apiKey = EnvironmentVariable("GITHUB_TOKEN") ?? throw new InvalidOperationException("GITHUB_TOKEN not set");
+        var packages = GetFiles(artifactsDirectory + "/*.nupkg")
+            .Where(p => !p.GetFilename().ToString().EndsWith(".symbols.nupkg"));
+
+        foreach (var package in packages)
+        {
+            DotNetNuGetPush(
+                package.ToString(),
+                new DotNetNuGetPushSettings()
+                {
+                    Source = "https://nuget.pkg.github.com/lessi-ai/index.json",
+                    ApiKey = apiKey,
+                });
+        }
+    });
+
 Task("Default")
     .Description("Cleans, restores NuGet packages, builds the solution, runs unit tests and then creates NuGet packages.")
     .IsDependentOn("Build")
