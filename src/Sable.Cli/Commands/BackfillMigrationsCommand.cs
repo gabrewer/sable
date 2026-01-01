@@ -20,7 +20,7 @@ public class BackfillMigrationsCommand : AsyncCommand<BackfillMigrationsCommand.
         _consoleLogger = consoleLogger ?? throw new ArgumentNullException(nameof(consoleLogger));
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         var script = await _martenMigrationManager.CreateBackfillMigrationScript(settings.ProjectFilePath, settings.DatabaseName);
         var scriptFilePath = settings.Output;
