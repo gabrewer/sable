@@ -22,7 +22,7 @@ public class UpdateDatabaseCommand : AsyncCommand<UpdateDatabaseCommand.Settings
         _consoleLogger = consoleLogger ?? throw new ArgumentNullException(nameof(consoleLogger));
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         var script = await _martenMigrationManager.CreateMigrationScript(settings.ProjectFilePath, settings.DatabaseName, to: settings.TargetMigration);
         await using var dataSource = NpgsqlDataSource.Create(settings.ConnectionString);

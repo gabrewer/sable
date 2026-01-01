@@ -20,7 +20,7 @@ public class CreateMigrationScriptCommand : AsyncCommand<CreateMigrationScriptCo
         _consoleLogger = consoleLogger ?? throw new ArgumentNullException(nameof(consoleLogger));
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
         var script = await _martenMigrationManager.CreateMigrationScript(settings.ProjectFilePath, settings.DatabaseName, settings.From, settings.To);
         var scriptFilePath = settings.Output;
