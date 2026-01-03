@@ -2,28 +2,40 @@
 // Distributed under the terms of the MIT license.
 
 using System.ComponentModel;
+using Newtonsoft.Json;
+using Sable.Cli.Extensions;
 using Sable.Cli.Options;
 using Sable.Cli.Settings;
 using Sable.Cli.Utilities;
-using Newtonsoft.Json;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Sable.Cli.Commands;
 
-public class InitializeInfrastructureCommand : AsyncCommand<InitializeInfrastructureCommand.Settings>
+public class InitializeInfrastructureCommand
+    : AsyncCommand<InitializeInfrastructureCommand.Settings>
 {
     private readonly IMartenMigrationManager _martenMigrationManager;
 
     public InitializeInfrastructureCommand(IMartenMigrationManager martenMigrationManager)
     {
-        _martenMigrationManager = martenMigrationManager ?? throw new ArgumentNullException(nameof(martenMigrationManager));
+        _martenMigrationManager =
+            martenMigrationManager
+            ?? throw new ArgumentNullException(nameof(martenMigrationManager));
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(
+        CommandContext context,
+        Settings settings,
+        CancellationToken cancellationToken
+    )
     {
-        var result = await _martenMigrationManager.SetupInfrastructure(settings.ProjectFilePath, settings.DatabaseName,
-            settings.DatabaseSchemaName, settings.PostgresContainerOptions);
+        var result = await _martenMigrationManager.SetupInfrastructure(
+            settings.ProjectFilePath,
+            settings.DatabaseName,
+            settings.DatabaseSchemaName,
+            settings.PostgresContainerOptions
+        );
         return result;
     }
 
@@ -31,19 +43,25 @@ public class InitializeInfrastructureCommand : AsyncCommand<InitializeInfrastruc
     {
         [Description("Name of the database schema. Defaults to the 'public' schema.")]
         [CommandOption("-s|--schema")]
-        public string DatabaseSchemaName { get; init; } = SableCliConstants.DefaultDatabaseSchemaName;
+        public string DatabaseSchemaName { get; init; } =
+            SableCliConstants.DefaultDatabaseSchemaName;
 
-        [Description("Path to a JSON file that contains options for buiding a custom Postgres container that is used as the shadow database for migration management.")]
+        [Description(
+            "Path to a JSON file that contains options for buiding a custom Postgres container that is used as the shadow database for migration management."
+        )]
         [CommandOption("-c|--container-options")]
         public string ContainerOptionsFilePath { get; init; }
 
         public PostgresContainerOptions PostgresContainerOptions { get; private set; } = new();
+
         public override ValidationResult Validate()
         {
             if (!string.IsNullOrWhiteSpace(ContainerOptionsFilePath))
             {
                 var fileContents = File.ReadAllText(ContainerOptionsFilePath);
-                PostgresContainerOptions = JsonConvert.DeserializeObject<PostgresContainerOptions>(fileContents);
+                PostgresContainerOptions = JsonConvert.DeserializeObject<PostgresContainerOptions>(
+                    fileContents
+                );
             }
 
             var baseResult = base.Validate();
@@ -52,10 +70,15 @@ public class InitializeInfrastructureCommand : AsyncCommand<InitializeInfrastruc
                 return baseResult;
             }
 
-            var validationResult = ValidationUtilities.MigrationsInfrastructureHasBeenInitialized(ProjectFilePath, DatabaseName);
+            var validationResult = ValidationUtilities.MigrationsInfrastructureHasBeenInitialized(
+                ProjectFilePath,
+                DatabaseName.ToDatabasePathName()
+            );
             return !validationResult.Successful
                 ? ValidationResult.Success()
-                : ValidationResult.Error($"The migration infrastructure has already been initialized for the '{DatabaseName}' database.");
+                : ValidationResult.Error(
+                    $"The migration infrastructure has already been initialized for the '{DatabaseName}' database."
+                );
         }
     }
 }
