@@ -2,6 +2,7 @@
 // Distributed under the terms of the MIT license.
 
 using System.ComponentModel;
+using Sable.Cli.Extensions;
 using Sable.Cli.Settings;
 using Sable.Cli.Utilities;
 using Spectre.Console;
@@ -14,24 +15,45 @@ public class CreateMigrationScriptCommand : AsyncCommand<CreateMigrationScriptCo
     private readonly IMartenMigrationManager _martenMigrationManager;
     private readonly IConsoleLogger _consoleLogger;
 
-    public CreateMigrationScriptCommand(IMartenMigrationManager martenMigrationManager, IConsoleLogger consoleLogger)
+    public CreateMigrationScriptCommand(
+        IMartenMigrationManager martenMigrationManager,
+        IConsoleLogger consoleLogger
+    )
     {
-        _martenMigrationManager = martenMigrationManager ?? throw new ArgumentNullException(nameof(martenMigrationManager));
+        _martenMigrationManager =
+            martenMigrationManager
+            ?? throw new ArgumentNullException(nameof(martenMigrationManager));
         _consoleLogger = consoleLogger ?? throw new ArgumentNullException(nameof(consoleLogger));
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(
+        CommandContext context,
+        Settings settings,
+        CancellationToken cancellationToken
+    )
     {
-        var script = await _martenMigrationManager.CreateMigrationScript(settings.ProjectFilePath, settings.DatabaseName, settings.From, settings.To);
+        var script = await _martenMigrationManager.CreateMigrationScript(
+            settings.ProjectFilePath,
+            settings.DatabaseName,
+            settings.From,
+            settings.To
+        );
         var scriptFilePath = settings.Output;
         if (string.IsNullOrWhiteSpace(settings.Output))
         {
-            var projectDirectory = FileSystemUtilities.ResolveProjectDirectory(settings.ProjectFilePath);
+            var projectDirectory = FileSystemUtilities.ResolveProjectDirectory(
+                settings.ProjectFilePath
+            );
             var currentTime = DateTime.UtcNow;
             var timestamp = currentTime.ToString(SableCliConstants.TimeSerializationFormat);
             var scriptName = $"{timestamp}_script.sql";
-            scriptFilePath = Path.Combine(projectDirectory, "sable", settings.DatabaseName, "scripts",
-                scriptName);
+            scriptFilePath = Path.Combine(
+                projectDirectory,
+                "sable",
+                settings.DatabaseName.ToDatabasePathName(),
+                "scripts",
+                scriptName
+            );
         }
         var fileInfo = new FileInfo(scriptFilePath);
         var scriptsDirectory = fileInfo.DirectoryName;
@@ -43,16 +65,21 @@ public class CreateMigrationScriptCommand : AsyncCommand<CreateMigrationScriptCo
 
     public class Settings : ProjectSettings
     {
-
-        [Description("Id or name of the first migration that should be included in the script. Defaults to the first migration that was generated.")]
+        [Description(
+            "Id or name of the first migration that should be included in the script. Defaults to the first migration that was generated."
+        )]
         [CommandOption("-f|--from")]
         public string From { get; init; }
 
-        [Description("Id or name of the last migration that should be included in the script. Defaults to the last migration that was generated.")]
+        [Description(
+            "Id or name of the last migration that should be included in the script. Defaults to the last migration that was generated."
+        )]
         [CommandOption("-t|--to")]
         public string To { get; init; }
 
-        [Description("Path of the file to save the script to. Defaults to a path within the 'sable' directory tree.")]
+        [Description(
+            "Path of the file to save the script to. Defaults to a path within the 'sable' directory tree."
+        )]
         [CommandOption("-o|--output")]
         public string Output { get; init; }
 
@@ -63,8 +90,10 @@ public class CreateMigrationScriptCommand : AsyncCommand<CreateMigrationScriptCo
             {
                 return baseResult;
             }
-            var validationResult =
-                ValidationUtilities.MigrationsInfrastructureHasBeenInitialized(ProjectFilePath, DatabaseName);
+            var validationResult = ValidationUtilities.MigrationsInfrastructureHasBeenInitialized(
+                ProjectFilePath,
+                DatabaseName.ToDatabasePathName()
+            );
             return validationResult;
         }
     }

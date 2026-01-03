@@ -4,6 +4,7 @@
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
+using Sable.Cli.Extensions;
 using Sable.Cli.Options;
 using Sable.Cli.Settings;
 using Sable.Cli.Utilities;
@@ -23,7 +24,11 @@ public class AddMigrationCommand : AsyncCommand<AddMigrationCommand.Settings>
             ?? throw new ArgumentNullException(nameof(martenMigrationManager));
     }
 
-    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+    public override async Task<int> ExecuteAsync(
+        CommandContext context,
+        Settings settings,
+        CancellationToken cancellationToken
+    )
     {
         var result = await _martenMigrationManager.AddMigration(
             settings.ProjectFilePath,
@@ -97,7 +102,7 @@ public class AddMigrationCommand : AsyncCommand<AddMigrationCommand.Settings>
             var migrationsDirectory = Path.Combine(
                 projectDirectory,
                 "sable",
-                DatabaseName,
+                DatabaseName.ToDatabasePathName(),
                 "migrations"
             );
             var existingMigrationNames = Directory
@@ -114,7 +119,7 @@ public class AddMigrationCommand : AsyncCommand<AddMigrationCommand.Settings>
 
             var validationResult = ValidationUtilities.MigrationsInfrastructureHasBeenInitialized(
                 ProjectFilePath,
-                DatabaseName
+                DatabaseName.ToDatabasePathName()
             );
             return validationResult;
         }
