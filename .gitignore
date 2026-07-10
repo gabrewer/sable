@@ -353,4 +353,7 @@ MigrationBackup/
 
 Artifacts/
 
+# Pi runtime files (project prompts and skills remain tracked)
+.pi/tmp/
+
 .idea/
