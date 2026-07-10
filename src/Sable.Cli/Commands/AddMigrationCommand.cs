@@ -24,7 +24,7 @@ public class AddMigrationCommand : AsyncCommand<AddMigrationCommand.Settings>
             ?? throw new ArgumentNullException(nameof(martenMigrationManager));
     }
 
-    public override async Task<int> ExecuteAsync(
+    protected override async Task<int> ExecuteAsync(
         CommandContext context,
         Settings settings,
         CancellationToken cancellationToken

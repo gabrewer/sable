@@ -38,8 +38,8 @@
   </PropertyGroup>
 
   <ItemGroup Label="Package References">
-    <PackageReference Include="MinVer" PrivateAssets="all" Version="4.2.0" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" Version="1.1.1" />
+    <PackageReference Include="MinVer" PrivateAssets="all" Version="7.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" Version="10.0.300" />
   </ItemGroup>
 
   <ItemGroup Label="Files">

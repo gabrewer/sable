@@ -26,7 +26,7 @@ public class BackfillMigrationsCommand : AsyncCommand<BackfillMigrationsCommand.
         _consoleLogger = consoleLogger ?? throw new ArgumentNullException(nameof(consoleLogger));
     }
 
-    public override async Task<int> ExecuteAsync(
+    protected override async Task<int> ExecuteAsync(
         CommandContext context,
         Settings settings,
         CancellationToken cancellationToken
