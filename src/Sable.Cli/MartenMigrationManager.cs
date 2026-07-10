@@ -88,8 +88,7 @@ public class MartenMigrationManager : IMartenMigrationManager
             containerOptions.ConnectionString
         );
         var waitStrategy = Wait.ForUnixContainer().AddCustomWaitStrategy(readinessProbeStrategy);
-        var containerBuilder = new ContainerBuilder()
-            .WithImage(containerOptions.Image)
+        var containerBuilder = new ContainerBuilder(containerOptions.Image)
             .WithEnvironment(containerOptions.EnvironmentVariables)
             .WithWaitStrategy(waitStrategy);
         foreach (var portBinding in containerOptions.PortBindings)

@@ -81,21 +81,23 @@ Task("Pack")
     });
 
 Task("Publish")
-    .Description("Publishes NuGet packages to GitHub Packages.")
+    .Description("Publishes NuGet packages to GitHub Packages and makes them public.")
     .Does(() =>
     {
         var apiKey = EnvironmentVariable("GITHUB_TOKEN") ?? throw new InvalidOperationException("GITHUB_TOKEN not set");
-        var packages = GetFiles(artifactsDirectory + "/*.nupkg")
+        var packages = GetFiles($"{artifactsDirectory}/*.nupkg")
             .Where(p => !p.GetFilename().ToString().EndsWith(".symbols.nupkg"));
 
         foreach (var package in packages)
         {
+            // Push the package
             DotNetNuGetPush(
                 package.ToString(),
                 new DotNetNuGetPushSettings()
                 {
                     Source = "https://nuget.pkg.github.com/lessi-ai/index.json",
                     ApiKey = apiKey,
+                    SkipDuplicate = true,
                 });
         }
     });
