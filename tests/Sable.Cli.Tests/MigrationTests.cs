@@ -7,13 +7,16 @@ namespace Sable.Cli.Tests;
 
 public class MigrationTests : IDisposable
 {
+    private const string ExpectedUnsupportedMessage =
+        "Sable cannot safely wrap migration '20260710000000_Test' because it begins with an unsupported top-level DO statement. Only a recognized safe schema-creation preamble can be moved outside the idempotence guard. Use Sable's no-idempotence workflow only when the migration is independently idempotent.";
+
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(),
         $"sable-migration-tests-{Guid.NewGuid():N}"
     );
 
     [Fact]
-    public void LeadingSchemaCreationBlockIsHoistedOutsideIdempotenceBlock()
+    public void ConsecutiveSafeSchemaPreamblesAreHoistedBeforeTheGuard()
     {
         var migration = CreateMigration(
             """
@@ -21,24 +24,44 @@ public class MigrationTests : IDisposable
 
             DO $$
             BEGIN
-                CREATE SCHEMA IF NOT EXISTS sample;
+                BEGIN
+                    EXECUTE 'CREATE SCHEMA IF NOT EXISTS sample';
+                EXCEPTION
+                    WHEN duplicate_schema THEN NULL;
+                    WHEN unique_violation THEN NULL;
+                END;
             END
+            $$;
+
+            DO LANGUAGE plpgsql $schema$
+            BEGIN
+                BEGIN
+                    EXECUTE 'CREATE SCHEMA IF NOT EXISTS sample';
+                EXCEPTION
+                    WHEN unique_violation THEN NULL;
+                    WHEN duplicate_schema THEN NULL;
+                END;
+            END
+            $schema$;
+
+            CREATE OR REPLACE FUNCTION sample.answer() RETURNS integer LANGUAGE sql AS $$
+                SELECT 42;
             $$;
             """
         );
 
         var script = migration.GetIdempotentScript();
+        var guardIndex = script.IndexOf("DO $sable$", StringComparison.Ordinal);
 
-        Assert.Contains("RAISE NOTICE 'Running migration", script);
-        Assert.DoesNotContain("RAISE NOTICE 'Inserting record for migration", script);
-        Assert.True(
-            script.IndexOf("CREATE SCHEMA IF NOT EXISTS sample", StringComparison.Ordinal)
-                < script.IndexOf("RAISE NOTICE 'Running migration", StringComparison.Ordinal)
-        );
+        Assert.True(guardIndex >= 0);
+        Assert.True(script.IndexOf("DO $$", StringComparison.Ordinal) < guardIndex);
+        Assert.True(script.IndexOf("DO LANGUAGE plpgsql $schema$", StringComparison.Ordinal) < guardIndex);
+        Assert.True(script.IndexOf("CREATE OR REPLACE FUNCTION", StringComparison.Ordinal) > guardIndex);
+        Assert.Contains("AS $$", script);
     }
 
     [Fact]
-    public void LeadingSchemaCreationBlockKeepsRemainingStatementsIdempotent()
+    public void NoIdempotenceDirectiveKeepsTheOriginalScriptUnwrapped()
     {
         var migration = CreateMigration(
             """
@@ -47,21 +70,66 @@ public class MigrationTests : IDisposable
 
             DO $$
             BEGIN
-                CREATE SCHEMA IF NOT EXISTS sample;
+                BEGIN
+                    EXECUTE 'CREATE SCHEMA IF NOT EXISTS sample';
+                EXCEPTION
+                    WHEN duplicate_schema THEN NULL;
+                    WHEN unique_violation THEN NULL;
+                END;
             END
             $$;
 
-            CREATE INDEX sample_index ON sample.items (id);
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS sample_index ON sample.items (id);
             """
         );
 
         var script = migration.GetIdempotentScript();
 
-        Assert.Contains("RAISE NOTICE 'Running migration", script);
+        Assert.DoesNotContain("RAISE NOTICE 'Running migration", script);
+        Assert.Contains("RAISE NOTICE 'Inserting record for migration", script);
         Assert.True(
-            script.IndexOf("RAISE NOTICE 'Running migration", StringComparison.Ordinal)
-                < script.IndexOf("CREATE INDEX sample_index", StringComparison.Ordinal)
+            script.IndexOf("CREATE INDEX CONCURRENTLY", StringComparison.Ordinal)
+                < script.IndexOf("RAISE NOTICE 'Inserting record", StringComparison.Ordinal)
         );
+    }
+
+    [Fact]
+    public void BothDirectivesRemainAuthoritativeForASafePreamble()
+    {
+        var migration = CreateMigration(
+            """
+            -- Sable NoIdempotenceWrapper
+            -- Sable NoTransactionWrapper
+
+            DO $$
+            BEGIN
+                BEGIN
+                    EXECUTE 'CREATE SCHEMA IF NOT EXISTS sample';
+                EXCEPTION
+                    WHEN duplicate_schema THEN NULL;
+                    WHEN unique_violation THEN NULL;
+                END;
+            END
+            $$;
+            """
+        );
+
+        var script = migration.GetTransactionalIdempotentScript();
+
+        Assert.DoesNotContain("BEGIN;", script);
+        Assert.DoesNotContain("RAISE NOTICE 'Running migration", script);
+        Assert.Contains("RAISE NOTICE 'Inserting record for migration", script);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnsupportedTopLevelDoScripts))]
+    public void UnsupportedTopLevelDoFailsClosed(string script)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            CreateMigration(script).GetIdempotentScript()
+        );
+
+        Assert.Equal(ExpectedUnsupportedMessage, exception.Message);
     }
 
     [Fact]
@@ -76,28 +144,90 @@ public class MigrationTests : IDisposable
         Assert.DoesNotContain("RAISE NOTICE 'Inserting record for migration", script);
     }
 
-    [Fact]
-    public void SplitLeadingSchemaCreationBlockSkipsCommentsAndWhitespace()
+    public static IEnumerable<object[]> UnsupportedTopLevelDoScripts()
     {
-        var script = """
-
-            -- Generated by Sable
-            DO $migration$
+        yield return
+        [
+            """
+            DO $$
             BEGIN
                 NULL;
             END
-            $migration$;
-            """;
-
-        Assert.True(
-            Migration.TrySplitLeadingSchemaCreationBlock(
-                script.Replace("NULL;", "CREATE SCHEMA IF NOT EXISTS sample;"),
-                out var schemaCreationBlock,
-                out var remainingScript
-            )
-        );
-        Assert.Contains("DO $migration$", schemaCreationBlock);
-        Assert.True(string.IsNullOrWhiteSpace(remainingScript));
+            $$;
+            """,
+        ];
+        yield return
+        [
+            """
+            DO $$
+            BEGIN
+                RAISE NOTICE 'CREATE SCHEMA IF NOT EXISTS sample';
+            END
+            $$;
+            """,
+        ];
+        yield return
+        [
+            """
+            DO $$
+            BEGIN
+                -- CREATE SCHEMA IF NOT EXISTS sample;
+                DELETE FROM sample.items;
+            END
+            $$;
+            """,
+        ];
+        yield return
+        [
+            """
+            DO $$
+            BEGIN
+                BEGIN
+                    EXECUTE 'CREATE SCHEMA IF NOT EXISTS other_schema';
+                EXCEPTION
+                    WHEN duplicate_schema THEN NULL;
+                    WHEN unique_violation THEN NULL;
+                END;
+            END
+            $$;
+            """,
+        ];
+        yield return
+        [
+            """
+            DO $$
+            BEGIN
+                CREATE SCHEMA IF NOT EXISTS sample;
+            END
+            $$;
+            """,
+        ];
+        yield return
+        [
+            """
+            DO $$
+            BEGIN
+                BEGIN
+                    EXECUTE 'CREATE SCHEMA IF NOT EXISTS sample';
+                EXCEPTION
+                    WHEN duplicate_schema THEN NULL;
+                    WHEN unique_violation THEN NULL;
+                END;
+                DELETE FROM sample.items;
+            END
+            $$;
+            """,
+        ];
+        yield return
+        [
+            """
+            DO $$
+            BEGIN
+                BEGIN
+                    EXECUTE 'CREATE SCHEMA IF NOT EXISTS sample';
+                END;
+            """,
+        ];
     }
 
     public void Dispose()

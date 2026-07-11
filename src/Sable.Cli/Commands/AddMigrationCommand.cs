@@ -30,15 +30,21 @@ public class AddMigrationCommand : AsyncCommand<AddMigrationCommand.Settings>
         CancellationToken cancellationToken
     )
     {
-        var result = await _martenMigrationManager.AddMigration(
-            settings.ProjectFilePath,
-            settings.DatabaseName,
-            settings.Name,
-            settings.PostgresContainerOptions,
-            settings.NoIdempotenceWrapper,
-            settings.NoTransactionWrapper
-        );
-        return result;
+        try
+        {
+            return await _martenMigrationManager.AddMigration(
+                settings.ProjectFilePath,
+                settings.DatabaseName,
+                settings.Name,
+                settings.PostgresContainerOptions,
+                settings.NoIdempotenceWrapper,
+                settings.NoTransactionWrapper
+            );
+        }
+        catch (InvalidOperationException e) when (MigrationCompositionError.Is(e))
+        {
+            return MigrationCompositionError.WriteAndReturnExitCode(e);
+        }
     }
 
     public class Settings : ProjectSettings
