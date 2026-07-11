@@ -1,9 +1,9 @@
 ﻿// Copyright 2024 Bloomberg Finance L.P.
 // Distributed under the terms of the MIT license.
 
+using Microsoft.Extensions.DependencyInjection;
 using Sable.Cli;
 using Sable.Cli.Commands;
-using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
