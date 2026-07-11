@@ -1,9 +1,9 @@
 ﻿// Copyright 2024 Bloomberg Finance L.P.
 // Distributed under the terms of the MIT license.
 
-using Sable.Extensions;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using Sable.Extensions;
 using Weasel.Core;
 using Xunit;
 
