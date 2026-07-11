@@ -21,7 +21,7 @@ verify/                     # Verification scripts (one subdirectory per feature
 task-issues.json            # Task ID → GitHub issue number mapping (GitHub mode only)
 ```
 
-In filesystem state-backend mode, durable orchestration state lives in the paths defined by `TEAM-ORCHESTRATION.md`, such as `docs/sprints/`, `docs/reviews/`, and `docs/reports/`.
+For Sable, GitHub Issues is the required durable sprint backend. Repository files under `docs/design/<YYYYMMDD>-<feature-slug>.md` are product/design sources, not execution-state backends.
 
 ---
 
@@ -131,7 +131,7 @@ Install at least:
 - `.pi/prompts/pm-agent.md` — converts a PRD/spec into an audited sprint issue/file.
 - `.pi/prompts/team-lead.md` — executes an approved sprint through worker skills and quality gates.
 
-Both prompts must name exact files to read first, the selected state backend, temp-file paths, quality-gate headings, verification commands, and the rule that acceptance verification is prepared for a human rather than self-approved.
+Both prompts must name exact files to read first, GitHub Issues as the fixed sprint backend, temp-file paths, quality-gate headings, verification commands, and the rule that acceptance verification is prepared for a human rather than self-approved.
 
 ### 6. Update ignore rules
 
@@ -175,11 +175,11 @@ Example:
 
 ```markdown
 ---
-description: Plan a sprint using the user-selected state backend
-argument-hint: "<feature-or-prd> <github-issues|filesystem>"
+description: Plan a Sable sprint in GitHub Issues
+argument-hint: "<feature-or-prd-path>"
 ---
 
-Plan a sprint for $1 using state backend $2. Follow instructions/TEAM-ORCHESTRATION.md.
+Plan a sprint for $1 using GitHub Issues as the required state backend. Follow TEAM-ORCHESTRATION.md.
 ```
 
 Templates support `$1`, `$2`, `$@`, and related positional argument forms.
@@ -189,7 +189,7 @@ Templates support `$1`, `$2`, `$@`, and related positional argument forms.
 Use the Lessi.App sequence-parity workflow as the target quality bar for generated Pi prompt templates:
 
 - **Read-before-write list**: name exact standards, spec files, source areas, tests, and existing issue comments to read before planning or execution.
-- **Single source of truth**: state whether GitHub Issues or filesystem is authoritative. In GitHub mode, prefer one umbrella/control sprint issue with comments/checklists when the human wants to avoid issue sprawl.
+- **Single source of truth**: GitHub Issues is authoritative for Sable sprint execution. Prefer one umbrella/control sprint issue with comments/checklists when the human wants to avoid issue sprawl.
 - **Full-stack default**: require a Contract Impact Check before tasking. Frontend-only is allowed only when explicitly marked `UI polish only`, `docs only`, or `frontend prototype only`.
 - **No state tunneling**: forbid production behavior that hides structured domain state in free-text fields such as `notes`, `description`, `metadataJson`, or local/session storage when a typed API contract is required.
 - **Write-side validation**: if typed IDs link persisted resources, require create/update paths to reject malformed, nonexistent, deleted, cross-user/tenant, and invalid child-item references before persistence.
@@ -271,12 +271,11 @@ Use `--session-dir .agentloop/pi-sessions` if agentloop should keep Pi subproces
 
 ## State Backend Rules
 
-Follow `TEAM-ORCHESTRATION.md`: the **user specifies** either GitHub Issues mode or filesystem mode as the state backend. Do not choose autonomously.
+Follow `TEAM-ORCHESTRATION.md`: GitHub Issues is the required backend for every Sable sprint; do not ask the user for a backend argument.
 
-- **GitHub Issues mode:** post progress and reports as issue comments. Use `.agentloop/tmp/` for `gh --body-file` drafts and do not commit those drafts.
-- **Filesystem mode:** write progress and reports to `docs/sprints/`, `docs/reviews/`, and `docs/reports/` using the same markdown headings.
+Post progress and reports as issue comments. Use `.pi/tmp/` or `.agentloop/tmp/` for `gh --body-file` drafts and do not commit those drafts.
 
-Pi agents should preserve the selected backend across every prompt, skill, and subprocess invocation. If a subprocess prompt lacks the backend, stop and ask the coordinator to provide it rather than guessing.
+Pi agents should preserve GitHub Issues as the source of truth across every prompt, skill, and phase. If a sprint record declares another backend, stop and report the policy conflict.
 
 ---
 

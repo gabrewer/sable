@@ -7,7 +7,7 @@ description: Converts an approved Sable brief or specification into an audited, 
 
 Read `AGENTS.md`, `TEAM-ORCHESTRATION.md`, the approved brief/spec, relevant source/tests/docs/samples, and all existing selected-backend state.
 
-Before creating artifacts, require the user-selected `github-issues` or `filesystem` backend. Build the sprint structure and Contract Impact Check from `TEAM-ORCHESTRATION.md`. For Sable, explicitly evaluate:
+Use GitHub Issues as Sable's required durable sprint backend without asking the user to choose a backend. Build the sprint structure and Contract Impact Check from `TEAM-ORCHESTRATION.md`. For Sable, explicitly evaluate:
 
 - public extension methods and Marten compatibility;
 - CLI names, arguments/options, validation, output, and exit codes;
