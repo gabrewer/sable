@@ -3,8 +3,8 @@
 **Status:** Approved for sprint planning
 **Planned sprint state backend:** github-issues
 **Owner / lead:** team-lead
-**Depends on:** issue #5, safe top-level schema `DO` preambles
-**Related branch:** `feature/schema-preamble-sample` (stacked on the unpushed issue #5 implementation)
+**Depends on:** issue #5 implementation; both issues are delivered and accepted together
+**Related branch:** `fix/top-level-do-migrations` (shared branch and PR with issue #5)
 
 ## Summary
 
