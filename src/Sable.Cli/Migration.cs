@@ -1,7 +1,6 @@
 ﻿// Copyright 2024 Bloomberg Finance L.P.
 // Distributed under the terms of the MIT license.
 
-using System.Text.RegularExpressions;
 using Scriban;
 
 namespace Sable.Cli;
@@ -63,63 +62,30 @@ public class Migration
 
         _scriptToWrap = Script;
         _leadingSchemaCreationBlock = string.Empty;
-        if (
-            TrySplitLeadingSchemaCreationBlock(
-                Script,
-                out var schemaCreationBlock,
-                out var remainingScript
+        if (!_wrapInIdempotenceBlock)
+        {
+            return;
+        }
+
+        try
+        {
+            if (
+                SafeSchemaPreambleParser.TrySplit(
+                    Script,
+                    DatabaseSchemaName,
+                    out var schemaCreationBlock,
+                    out var remainingScript
+                )
             )
-        )
-        {
-            _wrapInIdempotenceBlock = true;
-            _leadingSchemaCreationBlock = schemaCreationBlock;
-            _scriptToWrap = remainingScript;
+            {
+                _leadingSchemaCreationBlock = schemaCreationBlock;
+                _scriptToWrap = remainingScript;
+            }
         }
-    }
-
-    public static bool TrySplitLeadingSchemaCreationBlock(
-        string script,
-        out string schemaCreationBlock,
-        out string remainingScript
-    )
-    {
-        var openingMatch = Regex.Match(
-            script,
-            @"\A(?:(?:[ \t\r\n]+)|(?:--[^\r\n]*(?:\r?\n|\z)))*DO[ \t]+(?<delimiter>\$[A-Za-z0-9_]*\$)",
-            RegexOptions.IgnoreCase
-        );
-        if (!openingMatch.Success)
+        catch (FormatException)
         {
-            schemaCreationBlock = string.Empty;
-            remainingScript = script;
-            return false;
+            throw MigrationCompositionError.For(Id);
         }
-
-        var delimiter = openingMatch.Groups["delimiter"].Value;
-        var closingDelimiterIndex = script.IndexOf(
-            delimiter,
-            openingMatch.Index + openingMatch.Length,
-            StringComparison.Ordinal
-        );
-        if (closingDelimiterIndex < 0)
-        {
-            schemaCreationBlock = string.Empty;
-            remainingScript = script;
-            return false;
-        }
-
-        var blockEnd = closingDelimiterIndex + delimiter.Length;
-        if (blockEnd < script.Length && script[blockEnd] == ';')
-        {
-            blockEnd++;
-        }
-
-        schemaCreationBlock = script[..blockEnd];
-        remainingScript = script[blockEnd..];
-        return schemaCreationBlock.Contains(
-            "CREATE SCHEMA IF NOT EXISTS",
-            StringComparison.OrdinalIgnoreCase
-        );
     }
 
     public string GetIdempotentScript()
@@ -152,7 +118,9 @@ public class Migration
             },
             member => member.Name
         );
-        return $"{_leadingSchemaCreationBlock}{Environment.NewLine}{idempotentScript}";
+        return string.IsNullOrEmpty(_leadingSchemaCreationBlock)
+            ? idempotentScript
+            : $"{_leadingSchemaCreationBlock}{Environment.NewLine}{idempotentScript}";
     }
 
     public string GetTransactionalIdempotentScript()

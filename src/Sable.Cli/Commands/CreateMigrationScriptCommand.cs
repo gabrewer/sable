@@ -32,12 +32,21 @@ public class CreateMigrationScriptCommand : AsyncCommand<CreateMigrationScriptCo
         CancellationToken cancellationToken
     )
     {
-        var script = await _martenMigrationManager.CreateMigrationScript(
-            settings.ProjectFilePath,
-            settings.DatabaseName,
-            settings.From,
-            settings.To
-        );
+        string script;
+        try
+        {
+            script = await _martenMigrationManager.CreateMigrationScript(
+                settings.ProjectFilePath,
+                settings.DatabaseName,
+                settings.From,
+                settings.To
+            );
+        }
+        catch (InvalidOperationException e) when (MigrationCompositionError.Is(e))
+        {
+            return MigrationCompositionError.WriteAndReturnExitCode(e);
+        }
+
         var scriptFilePath = settings.Output;
         if (string.IsNullOrWhiteSpace(settings.Output))
         {

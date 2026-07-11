@@ -33,11 +33,20 @@ public class UpdateDatabaseCommand : AsyncCommand<UpdateDatabaseCommand.Settings
         CancellationToken cancellationToken
     )
     {
-        var script = await _martenMigrationManager.CreateMigrationScript(
-            settings.ProjectFilePath,
-            settings.DatabaseName,
-            to: settings.TargetMigration
-        );
+        string script;
+        try
+        {
+            script = await _martenMigrationManager.CreateMigrationScript(
+                settings.ProjectFilePath,
+                settings.DatabaseName,
+                to: settings.TargetMigration
+            );
+        }
+        catch (InvalidOperationException e) when (MigrationCompositionError.Is(e))
+        {
+            return MigrationCompositionError.WriteAndReturnExitCode(e);
+        }
+
         await using var dataSource = NpgsqlDataSource.Create(settings.ConnectionString);
         await using var command = dataSource.CreateCommand(script);
         await command.ExecuteNonQueryAsync();
