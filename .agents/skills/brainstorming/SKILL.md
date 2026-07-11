@@ -15,4 +15,4 @@ Follow the interactive planning process in `TEAM-ORCHESTRATION.md`:
 4. Design deterministic verification per proposed task. Prefer focused xUnit commands, Cake build/test, CLI argument/exit-code assertions, and docs builds. Database checks must use an explicitly approved disposable local database.
 5. Record the original acceptance source and explicit out-of-scope items.
 
-After user approval, run the planning preflight: verify git, create a feature branch if on `main`/`master`, check the remote, and ask the user to choose `github-issues` or `filesystem`. Never infer the backend. Hand off to `/pm-agent`; do not implement the feature from this skill.
+After user approval, run the planning preflight: verify git, create a feature branch if on `main`/`master`, and check the remote. Write the approved PRD to `docs/design/<YYYYMMDD>-<feature-slug>.md`, then hand off to `/pm-agent`; GitHub Issues is the fixed sprint backend. Do not implement the feature from this skill.

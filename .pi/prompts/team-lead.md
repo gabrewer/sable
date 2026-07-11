@@ -1,16 +1,16 @@
 ---
 description: Execute an approved Sable sprint through Pi worker roles and mandatory quality gates
-argument-hint: "<sprint-id-or-path> <github-issues|filesystem> [resume]"
+argument-hint: "<github-sprint-issue-number> [resume]"
 ---
 
-Execute the approved Sable sprint `$1` using `$2` as the durable state backend. Additional arguments: `${@:3}`.
+Execute the approved Sable sprint issue `$1` using GitHub Issues as the required durable state backend. Additional arguments: `${@:2}`.
 
-This repository does not use agentloop and Pi has no native subagent isolation. Orchestrate the workflow sequentially in this Pi session. Before each phase, read the corresponding `.agents/skills/<role>/SKILL.md`, announce the active role, obey that role's scope, and write its evidence to the selected backend. Never claim a subprocess or independent agent ran.
+This repository does not use agentloop and Pi has no native subagent isolation. Orchestrate the workflow sequentially in this Pi session. Before each phase, read the corresponding `.agents/skills/<role>/SKILL.md`, announce the active role, obey that role's scope, and write its evidence to the GitHub sprint issue. Never claim a subprocess or independent agent ran.
 
 Preflight — do not edit implementation code until all checks pass:
 
 1. Read `AGENTS.md`, `TEAM-ORCHESTRATION.md`, and `TOOL-PI.md` completely. Treat agentloop-specific invocation/state passages as background; retain the planning, role, gate, evidence, and acceptance rules.
-2. Confirm `$2` is exactly `github-issues` or `filesystem`, matches the sprint header, and remains the source of truth. If absent, invalid, or conflicting, stop and ask.
+2. Confirm the sprint header declares `github-issues` and remains the source of truth. If it conflicts with the repository's fixed GitHub Issues policy, stop and report the conflict.
 3. Load the authoritative sprint record and all existing task comments/build logs/reports. Confirm human approval, original acceptance criteria, dependencies, exact file scopes, and deterministic verification commands.
 4. Run `git status --short --branch`. Preserve unrelated changes. If on `main` or `master`, create a feature branch before any commit.
 5. Run `dotnet tool restore` and record failures.
@@ -42,7 +42,7 @@ Mandatory repository gates:
 - Generated sample migrations must use the approved Sable generation workflow defined by the task; no hand edits.
 - Completed implementation work must have real commit SHAs. Never commit temporary state or unrelated changes.
 
-Write state updates in real time using the exact headings from `TEAM-ORCHESTRATION.md`. In GitHub mode, use `.pi/tmp/` for long comment drafts and leave issues open. In filesystem mode, update the sprint file/build log and write round-numbered review/test reports without routine GitHub mirroring.
+Write state updates in real time to GitHub Issues using the exact headings from `TEAM-ORCHESTRATION.md`. Use `.pi/tmp/` for long comment drafts and leave issues open.
 
 Do not report completion until every task and mandatory gate passes. Then post both:
 

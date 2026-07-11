@@ -12,7 +12,7 @@ Supporting areas:
 - `tests/Sable.Tests/` and `tests/Sable.Cli.Tests/` — xUnit tests.
 - `samples/` — runnable Marten examples and checked-in Sable-generated migration artifacts.
 - `_docs/` — VitePress documentation source.
-- `docs/` — generated GitHub Pages output; regenerate it from `_docs/` rather than editing it by hand.
+- `docs/` — generated GitHub Pages output, except `docs/design/`, which contains source-authored product/design records. Regenerate site output from `_docs/` rather than editing generated pages by hand.
 - `build.cake` — canonical restore/build/test/pack pipeline.
 
 Read `TEAM-ORCHESTRATION.md` for planning, state-backend, quality-gate, commit, and acceptance rules. Read `TOOL-PI.md` for Pi resource layout. This repository does not use agentloop; treat agentloop-specific passages as background and apply the role sequence directly through Pi prompts and skills.
@@ -49,7 +49,7 @@ The Cake `Test` target uses `--no-build --no-restore`; run the `Build` target fi
 - Add or update xUnit tests in the matching test project. Keep deterministic logic unit-testable; do not introduce Docker or live database dependencies into ordinary unit tests.
 - Never change a test merely to make an implementation pass. If an assigned test conflicts with an approved contract, stop and report the mismatch.
 - Do not edit package references directly for dependency changes. Use `dotnet add package` or `npm --prefix _docs install`, as applicable, and include lockfile changes.
-- Do not edit generated `docs/` pages directly. Change `_docs/`, run `npm --prefix _docs run docs:build`, and review generated changes.
+- Do not edit generated `docs/` pages directly. `docs/design/` is the source-authored exception for durable PRDs and design records. Change `_docs/` for site content, run `npm --prefix _docs run docs:build`, and review generated changes.
 
 ## Migration and database safety
 
@@ -67,7 +67,7 @@ The Cake `Test` target uses `--no-build --no-restore`; run the `Build` target fi
 
 ## Pi and orchestration
 
-- The user must select `github-issues` or `filesystem` as the durable state backend before planning artifacts are created. Never infer it.
+- GitHub Issues is the required durable state backend for every Sable sprint. PRDs and design records live under `docs/design/`; the PM converts them into GitHub sprint/control issues. Do not ask for or use a filesystem sprint backend.
 - Use `.agents/skills/` for project worker roles and `.pi/prompts/` for human-facing workflow entry points.
 - Quality gates are phases, not normal implementation tasks: destroyer, reviewer, committer, sprint smoke test, completion report, and acceptance-verification preparation.
 - Run worker roles sequentially in the current Pi session. Before each phase, read the corresponding `.agents/skills/<role>/SKILL.md`, announce the active role, follow its scope, and record its evidence in the selected backend. Do not claim subprocess or process isolation.

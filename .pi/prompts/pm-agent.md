@@ -1,9 +1,9 @@
 ---
 description: Audit a Sable feature or specification and produce an implementation-ready sprint
-argument-hint: "<feature-or-spec-path> <github-issues|filesystem>"
+argument-hint: "<feature-or-spec-path>"
 ---
 
-Plan the Sable work described by `$1` using `$2` as the durable state backend.
+Plan the Sable work described by `$1`. Use GitHub Issues as the required durable sprint backend.
 
 Before writing anything:
 
@@ -12,13 +12,13 @@ Before writing anything:
 3. Read `README.md`, `build.cake`, `.github/workflows/build.yml`, and the relevant `_docs/` pages.
 4. Audit relevant source under `src/Sable/` and `src/Sable.Cli/`, matching tests under `tests/`, and relevant examples under `samples/`.
 5. Read existing sprint state and existing issue comments for this feature before replacing or duplicating work.
-6. Confirm `$2` is exactly `github-issues` or `filesystem`. If missing or invalid, stop and ask the user; never infer the backend.
+6. Confirm the specification is a durable repository file and use `github-issues` as the sprint source of truth without asking for a backend argument.
 
 Follow the planning loop and artifact rules in `TEAM-ORCHESTRATION.md`. Use `.agents/skills/product-designer/SKILL.md` and `.agents/skills/pm/SKILL.md` as role instructions. Ask unresolved product questions before declaring the sprint ready.
 
 The authoritative sprint issue/file must include:
 
-- the selected state backend in its header;
+- `github-issues` as the state backend in its header;
 - goal, in-scope and out-of-scope boundaries;
 - a Contract Impact Check covering the public .NET API, CLI syntax/behavior, generated migration layout and SQL semantics, database safety, docs, samples, and tests;
 - for parity or migration work, a source-delta matrix with exact paths/references;
@@ -38,7 +38,7 @@ Repository-specific constraints:
 
 Backend behavior:
 
-- `github-issues`: use a control issue when cohesive execution is preferred; compose long bodies/comments under `.pi/tmp/`; never commit drafts, close issues, or apply final labels.
-- `filesystem`: write `docs/sprints/<sprint-id>.md` and use the report/build-log paths from `TEAM-ORCHESTRATION.md`; do not mirror routine state to GitHub.
+- Use a GitHub control issue when cohesive execution is preferred; compose long bodies/comments under `.pi/tmp/`; never commit drafts, close issues, or apply final labels.
+- Do not create filesystem sprint state. Repository files under `docs/design/` are product/design sources, not execution-state backends.
 
 Do not implement code. End with the created/updated artifact locations, unresolved questions, and whether the sprint is ready for human approval.
