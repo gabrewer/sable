@@ -111,7 +111,9 @@ To apply that migration, just follow one of the database update strategies outli
 
 ## What's Next?
 
-- Want do see some more sample configurations? See [Sample Configurations](https://github.com/bloomberg/sable/tree/main/samples).
+- Want to see more sample configurations? See [Sample Configurations](https://github.com/bloomberg/sable/tree/main/samples).
+
+- Want a runnable example of Marten's safe top-level schema-creation preamble? See the [Schema Preamble Compatibility Sample](https://github.com/bloomberg/sable/tree/main/samples/Sable.Samples.SchemaPreamble). It includes Docker-free composition checks plus explicitly opt-in local/disposable PostgreSQL and full `migrations add` verification.
 
 - You have a more complicated configuration with a multi-tenancy setup? See [Multi-Tenancy Setup](../guide/multi-tenancy-setup)
 
