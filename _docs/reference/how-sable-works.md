@@ -118,6 +118,8 @@ When idempotence wrapping is enabled, an unsupported or malformed leading `DO` f
 Sable cannot safely wrap migration '<migration-id>' because it begins with an unsupported top-level DO statement. Only a recognized safe schema-creation preamble can be moved outside the idempotence guard. Use Sable's no-idempotence workflow only when the migration is independently idempotent.
 ```
 
+The [Schema Preamble Compatibility Sample](https://github.com/bloomberg/sable/tree/main/samples/Sable.Samples.SchemaPreamble) contains authentic generated Marten SQL and commands for Docker-free composition, disposable PostgreSQL replay, and a full temporary-copy `migrations add` check. Its pending-mapping environment variable is a repository test seam, not Sable configuration.
+
 ## Advanced Wrapper Directives
 
 `-- Sable NoTransactionWrapper` removes only Sable's outer `BEGIN` and `COMMIT`; the migration-history guard remains enabled.
