@@ -22,6 +22,25 @@ internal static class SafeSchemaPreambleParser
             return false;
         }
 
+        if (TryUnwrapLegacyTransactionEnvelope(script, statementStart, out var unwrappedScript))
+        {
+            if (
+                TrySplit(
+                    unwrappedScript,
+                    databaseSchemaName,
+                    out schemaPreambles,
+                    out remainingScript
+                )
+            )
+            {
+                return true;
+            }
+
+            schemaPreambles = string.Empty;
+            remainingScript = unwrappedScript;
+            return true;
+        }
+
         var preambleEnd = 0;
         while (IsKeywordAt(script, statementStart, "DO"))
         {
@@ -37,6 +56,88 @@ internal static class SafeSchemaPreambleParser
 
         schemaPreambles = script[..preambleEnd];
         remainingScript = script[preambleEnd..];
+        return true;
+    }
+
+    private static bool TryUnwrapLegacyTransactionEnvelope(
+        string script,
+        int statementStart,
+        out string unwrappedScript
+    )
+    {
+        unwrappedScript = string.Empty;
+        var position = SkipTrivia(script, statementStart + 2);
+        if (!IsKeywordAt(script, position, "LANGUAGE"))
+        {
+            return false;
+        }
+
+        position = SkipTrivia(script, position + "LANGUAGE".Length);
+        if (!IsKeywordAt(script, position, "plpgsql"))
+        {
+            return false;
+        }
+
+        position = SkipTrivia(script, position + "plpgsql".Length);
+        const string delimiter = "$tran$";
+        if (!script.AsSpan(position).StartsWith(delimiter, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var bodyStart = position + delimiter.Length;
+        var bodyEnd = script.IndexOf(delimiter, bodyStart, StringComparison.Ordinal);
+        if (bodyEnd < 0)
+        {
+            throw new FormatException("Unterminated legacy transaction envelope.");
+        }
+
+        position = SkipTrivia(script, bodyEnd + delimiter.Length);
+        if (position >= script.Length || script[position] != ';')
+        {
+            throw new FormatException("Missing legacy transaction envelope terminator.");
+        }
+
+        if (SkipTrivia(script, position + 1) != script.Length)
+        {
+            throw new FormatException("Unexpected content after legacy transaction envelope.");
+        }
+
+        var body = script[bodyStart..bodyEnd];
+        var beginStart = SkipTrivia(body, 0);
+        if (!IsKeywordAt(body, beginStart, "BEGIN"))
+        {
+            throw new FormatException("Missing legacy transaction envelope BEGIN.");
+        }
+
+        var contentStart = beginStart + "BEGIN".Length;
+        var bodyWithoutTrailingWhitespace = body.TrimEnd();
+        if (!bodyWithoutTrailingWhitespace.EndsWith(';'))
+        {
+            throw new FormatException("Missing legacy transaction envelope END terminator.");
+        }
+
+        var beforeSemicolon = bodyWithoutTrailingWhitespace[..^1].TrimEnd();
+        if (
+            beforeSemicolon.Length < "END".Length
+            || !beforeSemicolon.AsSpan(beforeSemicolon.Length - "END".Length)
+                .Equals("END", StringComparison.OrdinalIgnoreCase)
+            || (
+                beforeSemicolon.Length > "END".Length
+                && IsIdentifierPart(beforeSemicolon[beforeSemicolon.Length - "END".Length - 1])
+            )
+        )
+        {
+            throw new FormatException("Missing legacy transaction envelope END.");
+        }
+
+        var contentEnd = beforeSemicolon.Length - "END".Length;
+        if (contentEnd < contentStart)
+        {
+            throw new FormatException("Invalid legacy transaction envelope body.");
+        }
+
+        unwrappedScript = script[..statementStart] + body[contentStart..contentEnd];
         return true;
     }
 
@@ -91,6 +192,12 @@ internal static class SafeSchemaPreambleParser
 
     private static bool IsSafeSchemaBody(string body, string databaseSchemaName)
     {
+        return IsSafeExceptionSchemaBody(body, databaseSchemaName)
+            || IsSafeLegacySchemaBody(body, databaseSchemaName);
+    }
+
+    private static bool IsSafeExceptionSchemaBody(string body, string databaseSchemaName)
+    {
         var reader = new SqlReader(body);
         if (!reader.ReadKeyword("BEGIN") || !reader.ReadKeyword("BEGIN"))
         {
@@ -143,6 +250,45 @@ internal static class SafeSchemaPreambleParser
         return reader.IsAtEnd();
     }
 
+    private static bool IsSafeLegacySchemaBody(string body, string databaseSchemaName)
+    {
+        var reader = new SqlReader(body);
+        if (
+            !reader.ReadKeyword("BEGIN")
+            || !reader.ReadKeyword("IF")
+            || !reader.ReadKeyword("NOT")
+            || !reader.ReadKeyword("EXISTS")
+            || !reader.ReadSymbol('(')
+            || !reader.ReadKeyword("SELECT")
+            || !reader.ReadKeyword("schema_name")
+            || !reader.ReadKeyword("FROM")
+            || !reader.ReadKeyword("information_schema")
+            || !reader.ReadSymbol('.')
+            || !reader.ReadKeyword("schemata")
+            || !reader.ReadKeyword("WHERE")
+            || !reader.ReadKeyword("schema_name")
+            || !reader.ReadSymbol('=')
+            || !reader.ReadStringLiteral(out var inspectedSchemaName)
+            || !reader.ReadSymbol(')')
+            || !reader.ReadKeyword("THEN")
+            || !reader.ReadKeyword("EXECUTE")
+            || !reader.ReadStringLiteral(out var createSchemaSql)
+            || !reader.ReadRequiredSemicolon()
+            || !reader.ReadKeyword("END")
+            || !reader.ReadKeyword("IF")
+            || !reader.ReadRequiredSemicolon()
+            || !reader.ReadKeyword("END")
+        )
+        {
+            return false;
+        }
+
+        reader.ReadOptionalSemicolon();
+        return reader.IsAtEnd()
+            && SchemaNamesMatch(inspectedSchemaName, false, databaseSchemaName)
+            && IsSafeLegacyCreateSchema(createSchemaSql, databaseSchemaName);
+    }
+
     private static bool IsApprovedHandler(string handler)
     {
         return handler.Equals("duplicate_schema", StringComparison.OrdinalIgnoreCase)
@@ -158,6 +304,22 @@ internal static class SafeSchemaPreambleParser
             || !reader.ReadKeyword("IF")
             || !reader.ReadKeyword("NOT")
             || !reader.ReadKeyword("EXISTS")
+            || !reader.ReadIdentifier(out var schemaName, out var quoted)
+        )
+        {
+            return false;
+        }
+
+        reader.ReadOptionalSemicolon();
+        return reader.IsAtEnd() && SchemaNamesMatch(schemaName, quoted, databaseSchemaName);
+    }
+
+    private static bool IsSafeLegacyCreateSchema(string sql, string databaseSchemaName)
+    {
+        var reader = new SqlReader(sql);
+        if (
+            !reader.ReadKeyword("CREATE")
+            || !reader.ReadKeyword("SCHEMA")
             || !reader.ReadIdentifier(out var schemaName, out var quoted)
         )
         {
@@ -421,16 +583,21 @@ internal static class SafeSchemaPreambleParser
             return false;
         }
 
-        public bool ReadRequiredSemicolon()
+        public bool ReadSymbol(char symbol)
         {
             _position = SkipTrivia(_text, _position);
-            if (_position >= _text.Length || _text[_position] != ';')
+            if (_position >= _text.Length || _text[_position] != symbol)
             {
                 return false;
             }
 
             _position++;
             return true;
+        }
+
+        public bool ReadRequiredSemicolon()
+        {
+            return ReadSymbol(';');
         }
 
         public void ReadOptionalSemicolon()
