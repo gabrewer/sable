@@ -50,10 +50,13 @@ public class CatalogGuardedSchemaPreambleSafetyTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CatalogValueCannotNameAnOverlongPostgresSchema(bool multibyte)
+    public void MatchingOverlongSpellingsPreservePostgresNameCoercion(bool multibyte)
     {
         var schema = multibyte ? new string('é', 32) : new string('s', 64);
-        AssertRejected(CatalogGuardedSchemaPreambleTests.Preamble(schema, "\"" + schema + "\""), "\"" + schema + "\"");
+        var identifier = "\"" + schema + "\"";
+        var preamble = CatalogGuardedSchemaPreambleTests.Preamble(schema, identifier);
+        using var fixture = new CatalogGuardedMigrationFixture();
+        Assert.Contains(preamble, fixture.Create(preamble, identifier).GetIdempotentScript(), StringComparison.Ordinal);
     }
 
     [Theory]

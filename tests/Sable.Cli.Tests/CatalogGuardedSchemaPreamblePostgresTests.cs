@@ -105,17 +105,50 @@ public class CatalogGuardedSchemaPreamblePostgresTests
         Assert.Equal(0L, await fixture.Query<long>($"SELECT count(*) FROM {Schema}.__sable_migrations"));
     }
 
+    [CatalogPostgresFact]
+    [Trait("Category", "CatalogGuardedPostgres")]
+    public async Task PostgresNameCoercionPreservesRestrictedGuardedReplay()
+    {
+        await using var fixture = new SchemaPreambleCliFixture();
+        await fixture.Start();
+        var connectionString = await CreateRestrictedRole(fixture);
+        await AssertRestrictedRole(fixture, connectionString);
+        foreach (var (requested, physical) in new[]
+        {
+            (new string('s', 64), new string('s', 63)),
+            (new string('é', 32), new string('é', 31)),
+        })
+        {
+            var identifier = "\"" + requested + "\"";
+            var physicalIdentifier = "\"" + physical + "\"";
+            await SetupSchemaAndHistory(fixture, physicalIdentifier);
+            await fixture.ExecuteSetup($"GRANT USAGE, CREATE ON SCHEMA {physicalIdentifier} TO {Role}; GRANT SELECT, INSERT ON {physicalIdentifier}.__sable_migrations TO {Role};");
+            // nspname is PostgreSQL type name: the unknown literal is coerced by
+            // PostgreSQL, not by Sable. It still identifies the existing schema.
+            Assert.Equal(1L, await fixture.Query<long>($"SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname = '{requested}'"));
+            var history = fixture.CreateHistory(identifier);
+            var preamble = CatalogGuardedSchemaPreambleTests.Preamble(requested, identifier);
+            File.WriteAllText(Path.Combine(history.MigrationsDirectory, "20990101000000_NameCoercion.sql"),
+                preamble + $"\nCREATE TABLE {identifier}.name_coercion_probe (id integer);");
+            (await fixture.Update(history, connectionString)).AssertUpdated();
+            (await fixture.Update(history, connectionString)).AssertUpdated();
+            Assert.True(await fixture.Query<bool>($"SELECT to_regclass('{physicalIdentifier}.name_coercion_probe') IS NOT NULL"));
+            Assert.Equal(1L, await fixture.Query<long>($"SELECT count(*) FROM {physicalIdentifier}.__sable_migrations"));
+            await AssertRestrictedRole(fixture, connectionString);
+        }
+    }
+
     private static void AddNonIdempotentProbe(SchemaPreambleCliFixture.HistoryProject history)
     {
         File.WriteAllText(Path.Combine(history.MigrationsDirectory, "20990101000000_TestReplayProbe.sql"),
             $"-- Handwritten non-idempotent test probe; not a generated sample artifact\nCREATE TABLE {Schema}.replay_probe (id integer);");
     }
 
-    private static async Task SetupSchemaAndHistory(SchemaPreambleCliFixture fixture)
+    private static async Task SetupSchemaAndHistory(SchemaPreambleCliFixture fixture, string schemaIdentifier = Schema)
     {
         await fixture.ExecuteSetup($"""
-            CREATE SCHEMA {Schema};
-            CREATE TABLE {Schema}.__sable_migrations (
+            CREATE SCHEMA {schemaIdentifier};
+            CREATE TABLE {schemaIdentifier}.__sable_migrations (
                 migration_id varchar(150) PRIMARY KEY,
                 date_applied timestamp NOT NULL DEFAULT (now() at time zone 'utc'),
                 backfilled boolean NOT NULL DEFAULT false
