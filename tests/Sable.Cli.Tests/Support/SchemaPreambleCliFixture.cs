@@ -222,13 +222,21 @@ internal sealed class SchemaPreambleCliFixture : IAsyncDisposable
         IReadOnlyDictionary<string, string> environment = null
     )
     {
-        var start = new ProcessStartInfo("dotnet")
+        var installedCli = Environment.GetEnvironmentVariable("SABLE_TEST_CLI_PATH");
+        if (installedCli is not null && (!Path.IsPathFullyQualified(installedCli) || !File.Exists(installedCli)))
+        {
+            throw new InvalidOperationException("The isolated test CLI must be an existing absolute executable path.");
+        }
+        var start = new ProcessStartInfo(installedCli ?? "dotnet")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        start.ArgumentList.Add(typeof(Migration).Assembly.Location);
+        if (installedCli is null)
+        {
+            start.ArgumentList.Add(typeof(Migration).Assembly.Location);
+        }
         foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);
