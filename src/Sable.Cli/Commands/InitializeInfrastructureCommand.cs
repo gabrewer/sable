@@ -24,7 +24,7 @@ public class InitializeInfrastructureCommand
             ?? throw new ArgumentNullException(nameof(martenMigrationManager));
     }
 
-    protected override async Task<int> ExecuteAsync(
+    public override async Task<int> ExecuteAsync(
         CommandContext context,
         Settings settings,
         CancellationToken cancellationToken

@@ -10,6 +10,6 @@
     <ProjectReference Include="..\..\src\Sable\Sable.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Marten" Version="9.50.3" />
+    <PackageReference Include="Marten" Version="9.57.0" />
   </ItemGroup>
 </Project>

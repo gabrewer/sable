@@ -43,7 +43,7 @@ public class CatalogGuardedSchemaPreambleSampleCompositionTests
     {
         var project = ProjectFile();
         Assert.True(File.Exists(project), "The separate pinned producer sample is missing.");
-        Assert.Contains("Include=\"Marten\" Version=\"9.50.3\"", File.ReadAllText(project));
+        Assert.Contains("Include=\"Marten\" Version=\"9.57.0\"", File.ReadAllText(project));
         var program = File.ReadAllText(Path.Combine(Path.GetDirectoryName(project)!, "Program.cs"));
         Assert.Contains("SABLE_CATALOG_GUARDED_SAMPLE_INCLUDE_PENDING_CHANGE", program);
         Assert.Contains("StringComparison.Ordinal", program);

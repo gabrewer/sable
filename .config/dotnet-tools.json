@@ -6,13 +6,15 @@
       "version": "5.1.250801",
       "commands": [
         "dotnet-format"
-      ]
+      ],
+      "rollForward": false
     },
     "cake.tool": {
-      "version": "5.0.0",
+      "version": "6.3.0",
       "commands": [
         "dotnet-cake"
-      ]
+      ],
+      "rollForward": false
     }
   }
 }
