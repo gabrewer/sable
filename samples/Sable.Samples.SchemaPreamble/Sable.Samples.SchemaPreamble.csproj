@@ -11,7 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Sable\Sable.csproj" />
+    <Compile Include="..\..\src\Sable\Extensions\ServiceCollectionExtensions.cs" Link="Sable\ServiceCollectionExtensions.cs" />
+    <Compile Include="..\..\src\Sable\SableConstants.cs" Link="Sable\SableConstants.cs" />
   </ItemGroup>
 
 </Project>
