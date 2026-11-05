@@ -2,6 +2,7 @@
 // Distributed under the terms of the MIT license.
 
 using System.Runtime.InteropServices;
+using Sable.Cli.Extensions;
 using Sable.Cli.Utilities;
 using Xunit;
 
@@ -9,6 +10,14 @@ namespace Sable.Cli.Tests;
 
 public class FileSystemUtilitiesTests
 {
+    [Theory]
+    [InlineData("marten://store/", "Marten")]
+    [InlineData("wolverine://messages/main", "WolverineEnvelopeStorage")]
+    public void DatabaseSelectorsRetainEstablishedFolders(string selector, string folder)
+    {
+        Assert.Equal(folder, selector.ToDatabasePathName());
+    }
+
     [Fact]
     public Task EnsureProjectDirectoryIsResolvedCase1()
     {

@@ -193,7 +193,8 @@ internal static class SafeSchemaPreambleParser
     private static bool IsSafeSchemaBody(string body, string databaseSchemaName)
     {
         return IsSafeExceptionSchemaBody(body, databaseSchemaName)
-            || IsSafeLegacySchemaBody(body, databaseSchemaName);
+            || IsSafeLegacySchemaBody(body, databaseSchemaName)
+            || IsSafeCatalogSchemaBody(body, databaseSchemaName);
     }
 
     private static bool IsSafeExceptionSchemaBody(string body, string databaseSchemaName)
@@ -287,6 +288,128 @@ internal static class SafeSchemaPreambleParser
         return reader.IsAtEnd()
             && SchemaNamesMatch(inspectedSchemaName, false, databaseSchemaName)
             && IsSafeLegacyCreateSchema(createSchemaSql, databaseSchemaName);
+    }
+
+    private static bool IsSafeCatalogSchemaBody(string body, string databaseSchemaName)
+    {
+        var reader = new SqlReader(body, strictTrivia: true);
+        if (
+            !reader.ReadKeyword("BEGIN")
+            || !reader.ReadKeyword("IF")
+            || !reader.ReadKeyword("NOT")
+            || !reader.ReadKeyword("EXISTS")
+            || !reader.ReadSymbol('(')
+            || !reader.ReadKeyword("SELECT")
+            || !reader.ReadSymbol('1')
+            || !reader.ReadKeyword("FROM")
+            || !reader.ReadKeyword("pg_catalog")
+            || !reader.ReadSymbol('.')
+            || !reader.ReadKeyword("pg_namespace")
+            || !reader.ReadKeyword("WHERE")
+            || !reader.ReadKeyword("nspname")
+            || !reader.ReadSymbol('=')
+            || !reader.ReadStringLiteral(out var catalogSchemaName)
+            || !reader.ReadSymbol(')')
+            || !reader.ReadKeyword("THEN")
+            || !reader.ReadKeyword("BEGIN")
+            || !reader.ReadKeyword("EXECUTE")
+            || !reader.ReadStringLiteral(out var createSchemaSql)
+            || !reader.ReadRequiredSemicolon()
+            || !reader.ReadKeyword("EXCEPTION")
+        )
+        {
+            return false;
+        }
+
+        var handlers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < 2; i++)
+        {
+            if (
+                !reader.ReadKeyword("WHEN")
+                || !reader.ReadIdentifier(out var handler, out var quoted)
+                || quoted
+                || !IsApprovedHandler(handler)
+                || !handlers.Add(handler)
+                || !reader.ReadKeyword("THEN")
+                || !reader.ReadKeyword("NULL")
+                || !reader.ReadRequiredSemicolon()
+            )
+            {
+                return false;
+            }
+        }
+
+        if (
+            !reader.ReadKeyword("END")
+            || !reader.ReadRequiredSemicolon()
+            || !reader.ReadKeyword("END")
+            || !reader.ReadKeyword("IF")
+            || !reader.ReadRequiredSemicolon()
+            || !reader.ReadKeyword("END")
+        )
+        {
+            return false;
+        }
+
+        reader.ReadOptionalSemicolon();
+        if (!reader.IsAtEnd())
+        {
+            return false;
+        }
+
+        var configuredReader = new SqlReader(databaseSchemaName, strictTrivia: true);
+        var createReader = new SqlReader(createSchemaSql, strictTrivia: true);
+        if (
+            !configuredReader.ReadIdentifier(out var configuredSchema, out var configuredQuoted)
+            || !configuredReader.IsAtEnd()
+            || !createReader.ReadKeyword("CREATE")
+            || !createReader.ReadKeyword("SCHEMA")
+            || !createReader.ReadKeyword("IF")
+            || !createReader.ReadKeyword("NOT")
+            || !createReader.ReadKeyword("EXISTS")
+            || !createReader.ReadIdentifier(out var createdSchema, out var createdQuoted)
+        )
+        {
+            return false;
+        }
+
+        createReader.ReadOptionalSemicolon();
+        return createReader.IsAtEnd()
+            && catalogSchemaName.Length > 0
+            && !catalogSchemaName.Contains('\0')
+            && Encoding.UTF8.GetByteCount(catalogSchemaName) <= 63
+            && configuredSchema.Length > 0
+            && createdSchema.Length > 0
+            && string.Equals(
+                catalogSchemaName,
+                ResolveCatalogName(configuredSchema, configuredQuoted),
+                StringComparison.Ordinal
+            )
+            && string.Equals(
+                catalogSchemaName,
+                ResolveCatalogName(createdSchema, createdQuoted),
+                StringComparison.Ordinal
+            );
+    }
+
+    private static string ResolveCatalogName(string identifier, bool quoted)
+    {
+        if (quoted)
+        {
+            return identifier;
+        }
+
+        // PostgreSQL folds ASCII uppercase in unquoted UTF-8 identifiers. Catalog
+        // values and quoted identifier contents must not undergo Unicode lowercasing.
+        var characters = identifier.ToCharArray();
+        for (var i = 0; i < characters.Length; i++)
+        {
+            if (characters[i] is >= 'A' and <= 'Z')
+            {
+                characters[i] = (char)(characters[i] + ('a' - 'A'));
+            }
+        }
+        return new string(characters);
     }
 
     private static bool IsApprovedHandler(string handler)
@@ -387,7 +510,7 @@ internal static class SafeSchemaPreambleParser
         return true;
     }
 
-    private static int SkipTrivia(string text, int position)
+    private static int SkipTrivia(string text, int position, bool strictTrivia = false)
     {
         while (position < text.Length)
         {
@@ -409,7 +532,7 @@ internal static class SafeSchemaPreambleParser
 
             if (position + 1 < text.Length && text[position] == '/' && text[position + 1] == '*')
             {
-                position = SkipBlockComment(text, position);
+                position = SkipBlockComment(text, position, strictTrivia);
                 continue;
             }
 
@@ -419,7 +542,7 @@ internal static class SafeSchemaPreambleParser
         return position;
     }
 
-    private static int SkipBlockComment(string text, int position)
+    private static int SkipBlockComment(string text, int position, bool strictTrivia)
     {
         var depth = 1;
         position += 2;
@@ -443,6 +566,10 @@ internal static class SafeSchemaPreambleParser
             }
         }
 
+        if (strictTrivia && depth != 0)
+        {
+            throw new FormatException("Unterminated block comment.");
+        }
         return position;
     }
 
@@ -477,11 +604,18 @@ internal static class SafeSchemaPreambleParser
     private sealed class SqlReader
     {
         private readonly string _text;
+        private readonly bool _strictTrivia;
         private int _position;
 
-        public SqlReader(string text)
+        public SqlReader(string text, bool strictTrivia = false)
         {
             _text = text;
+            _strictTrivia = strictTrivia;
+        }
+
+        private int SkipTrivia(string text, int position)
+        {
+            return SafeSchemaPreambleParser.SkipTrivia(text, position, _strictTrivia);
         }
 
         public bool ReadKeyword(string keyword)
