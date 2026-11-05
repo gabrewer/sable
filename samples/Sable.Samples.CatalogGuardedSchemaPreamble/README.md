@@ -50,4 +50,26 @@ For a controlled rollback check, `SABLE_CATALOG_GUARDED_GENERATION_TIMEOUT_SECON
 
 Default mappings match the baseline. `SABLE_CATALOG_GUARDED_SAMPLE_INCLUDE_PENDING_CHANGE=1` enables exactly one additional mapping only in temporary end-to-end verification copies. It is not Sable configuration. The regeneration helper clears this seam and inherited connection overrides in its child.
 
-CLI replay/least-privilege, full add/script/update, and isolated package verification entry points are subsequent sprint deliverables; they are not claimed implemented by this baseline fixture alone.
+## CLI-driven disposable verification
+
+From the repository root with local Docker available:
+
+```bash
+bash verify/catalog-guarded-schema-preambles/postgres.sh
+bash verify/catalog-guarded-schema-preambles/e2e.sh
+```
+
+The PostgreSQL lane applies old/new authentic histories through CLI child processes, checks non-idempotent replay protection, verifies effective restricted-role privileges, requires an unguarded control to fail with SQLSTATE `42501`, and checks missing-schema/rejected-history failure without partial application. Its restricted-role fixture provisions prerequisites as owner and excludes the unconditional bootstrap artifact only in its owned temporary history; application history is not rewritten.
+
+The full-workflow lane enables the pending seam in a temporary sample copy, generates exactly one substantive migration, composes the resulting history, and replays it twice against a fresh disposable target. A rejection case proves the patch project never builds and no migration artifact changes. Baseline/source hashes and run-scoped cleanup are checked. Ordinary Cake tests skip these explicitly opt-in lanes; skips/discovery are not execution evidence.
+
+## Isolated package verification
+
+```bash
+dotnet tool restore
+dotnet cake --target=Build
+dotnet cake --target=Pack
+bash verify/catalog-guarded-schema-preambles/package.sh
+```
+
+The package lane installs the exact locally built CLI package into an isolated directory/cache, verifies identity and success/rejection behavior, and runs disposable CLI application against that executable. It never replaces a global tool or publishes a package. A development package version is not a release reservation. Consumer history/feed validation and publication require separate human approval.

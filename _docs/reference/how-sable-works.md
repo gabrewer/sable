@@ -112,13 +112,40 @@ COMMIT;
 
 One or more consecutive recognized schema preambles can appear before the guard. They run on each replay because their only accepted effect is idempotent creation of the configured schema. Sable does not suppress schema creation for externally managed schemas, and this behavior is not general support for hoisting arbitrary `DO` statements.
 
-When idempotence wrapping is enabled, an unsupported or malformed leading `DO` fails before script output or database execution with exit code `1`:
+### Catalog-guarded producer output
+
+Newer Weasel output adds an existence check around the exception-protected operation:
+
+```sql
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname = 'orders') THEN
+        BEGIN
+            EXECUTE 'CREATE SCHEMA IF NOT EXISTS orders';
+        EXCEPTION
+            WHEN duplicate_schema THEN NULL;
+            WHEN unique_violation THEN NULL;
+        END;
+    END IF;
+END
+$$;
+```
+
+Sable preserves this entire recognized preamble unchanged before its `$sable$` history guard; remaining product DDL and history insertion stay inside that guard. The catalog check avoids an unnecessary database-level `CREATE` privilege check when the schema already exists. The `duplicate_schema` and `unique_violation` handlers protect a concurrent creation after the check. Removing either protection or rewriting this into the older exception-only form is not an equivalent fix.
+
+The catalog literal is an exact schema-name value, not an SQL identifier. For example, a configured `"Orders"` and dynamic `CREATE SCHEMA IF NOT EXISTS "Orders"` require catalog value `'Orders'`, not `'orders'` or `'"Orders"'`. Unquoted identifiers follow PostgreSQL folding; quoted case and each literal/identifier escaping layer are preserved. The recognizer fails closed for catalog values that cannot name a standard PostgreSQL schema, including NUL or values beyond its 63-byte UTF-8 name capacity.
+
+This is not general conditional SQL support: aliases, broadened predicates, additional operations, or missing/extra/side-effecting handlers remain unsupported. Both approved handler orders, supported dollar tags, well-formed comments, and insignificant whitespace/casing are accepted. The outer `DO` statement terminator remains required. Older exception-only and information-schema histories retain their existing behavior; mixed consecutive recognized preambles are supported, but an unsupported following `DO` rejects the composition as a whole.
+
+A restricted role still needs schema/object/history privileges and cannot create a genuinely missing schema without database `CREATE`. An infrastructure migration that unconditionally executes `CREATE SCHEMA IF NOT EXISTS` can also require that privilege even for an existing schema. This recognition change does not alter bootstrap policy, grants, migration history, or transaction directives. Do not rewrite historical SQL, increase grants, or disable idempotence just to bypass recognition.
+
+When idempotence wrapping is enabled, an unsupported or malformed leading `DO` fails before script output or database execution with exit code `1`; an existing requested output is preserved:
 
 ```text
 Sable cannot safely wrap migration '<migration-id>' because it begins with an unsupported top-level DO statement. Only a recognized safe schema-creation preamble can be moved outside the idempotence guard. Use Sable's no-idempotence workflow only when the migration is independently idempotent.
 ```
 
-The [Schema Preamble Compatibility Sample](https://github.com/bloomberg/sable/tree/main/samples/Sable.Samples.SchemaPreamble) contains authentic generated Marten SQL and commands for Docker-free composition, disposable PostgreSQL replay, and a full temporary-copy `migrations add` check. Its pending-mapping environment variable is a repository test seam, not Sable configuration.
+The [Schema Preamble Compatibility Sample](https://github.com/bloomberg/sable/tree/main/samples/Sable.Samples.SchemaPreamble) contains authentic generated Marten SQL and commands for Docker-free composition, disposable PostgreSQL replay, and a full temporary-copy `migrations add` check. It preserves the older Marten 9.8.1 producer fixture. The separate [Catalog-Guarded Schema Preamble Sample](https://github.com/gabrewer/sable/tree/main/samples/Sable.Samples.CatalogGuardedSchemaPreamble) pins Marten 9.50.3 with resolved Weasel 9.45.0 and includes authentic guarded output. Its verification covers CLI-driven double replay, an independently verified restricted role, missing-schema rejection, complete temporary-copy generation and fresh replay, and an isolated locally packaged CLI. Sample pending-mapping variables are repository test seams, not Sable configuration. All database verification uses explicitly owned local disposable targets; generated SQL is applied through Sable, never manually.
 
 ## Advanced Wrapper Directives
 

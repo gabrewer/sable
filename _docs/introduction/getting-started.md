@@ -115,6 +115,8 @@ To apply that migration, just follow one of the database update strategies outli
 
 - Want a runnable example of Marten's safe top-level schema-creation preamble? See the [Schema Preamble Compatibility Sample](https://github.com/bloomberg/sable/tree/main/samples/Sable.Samples.SchemaPreamble). It includes Docker-free composition checks plus explicitly opt-in local/disposable PostgreSQL and full `migrations add` verification.
 
+- Using newer catalog-guarded Weasel output? See the separate [Catalog-Guarded Schema Preamble Sample](https://github.com/gabrewer/sable/tree/main/samples/Sable.Samples.CatalogGuardedSchemaPreamble), including owned disposable least-privilege and full-generation checks. Keep its generated history unchanged.
+
 - You have a more complicated configuration with a multi-tenancy setup? See [Multi-Tenancy Setup](../guide/multi-tenancy-setup)
 
 - You have a more complicated configuration with multiple database references? See [Multiple Database Setup](../guide/multiple-database-setup)
