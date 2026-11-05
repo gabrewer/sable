@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31423.177
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -79,6 +79,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sable.Tests", "tests\Sable.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sable.Samples.SchemaPreamble", "samples\Sable.Samples.SchemaPreamble\Sable.Samples.SchemaPreamble.csproj", "{5F2F051D-9642-4AB6-A635-27A3CDA8F3FC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sable.Samples.CatalogGuardedSchemaPreamble", "samples\Sable.Samples.CatalogGuardedSchemaPreamble\Sable.Samples.CatalogGuardedSchemaPreamble.csproj", "{066AC324-7A2E-4875-B0EC-917D76F4B67A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -121,6 +123,10 @@ Global
 		{5F2F051D-9642-4AB6-A635-27A3CDA8F3FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5F2F051D-9642-4AB6-A635-27A3CDA8F3FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5F2F051D-9642-4AB6-A635-27A3CDA8F3FC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{066AC324-7A2E-4875-B0EC-917D76F4B67A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{066AC324-7A2E-4875-B0EC-917D76F4B67A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{066AC324-7A2E-4875-B0EC-917D76F4B67A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{066AC324-7A2E-4875-B0EC-917D76F4B67A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -139,6 +145,7 @@ Global
 		{03FA826C-6DF3-465F-A1BE-83BA55156F74} = {E1B24F25-B8A4-46EE-B7EB-7803DCFC543F}
 		{65E71BD0-E5CD-42A2-959D-B5D74A655AF8} = {E1B24F25-B8A4-46EE-B7EB-7803DCFC543F}
 		{5F2F051D-9642-4AB6-A635-27A3CDA8F3FC} = {5934E500-E691-4C28-A8A5-119E9786F2AE}
+		{066AC324-7A2E-4875-B0EC-917D76F4B67A} = {5934E500-E691-4C28-A8A5-119E9786F2AE}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {73F36209-F8D6-4066-8951-D97729F773CF}
