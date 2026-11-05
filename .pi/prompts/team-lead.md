@@ -31,7 +31,7 @@ Enforce this phase order by explicitly loading each skill before acting:
 5. PM summary — `.agents/skills/pm/SKILL.md`;
 6. completion record and human acceptance-verification checklist.
 
-Do not merge worker responsibilities within a phase. Builders must not alter assigned tests, destroyer/reviewer scope is limited to task-owned changes, and the committer runs only after `SHIP IT`. Role changes are instruction/scope changes within this session, not security boundaries; use deterministic commands and recorded diffs as evidence.
+Do not merge worker responsibilities within a phase. Builders may create or update tests/harnesses explicitly assigned by the task, including opt-in integration tests; they must not weaken, remove, skip, or change protected contract tests to accommodate implementation. Route locked-test/contract mismatches to the test owner and reviewer before changing them. The unit-only test-writer does not author integration harnesses; record that phase as not applicable when an integration-capable builder owns the assigned harness work. Classify missing-behavior regressions (expected pre-fix failure/post-fix success) separately from preservation tests (may start green and must stay green); never manufacture failures. Independently review assigned test changes. Destroyer/reviewer scope is limited to task-owned changes, and the committer runs only after `SHIP IT`. Role changes are instruction/scope changes within this session, not security boundaries; use deterministic commands and recorded diffs as evidence.
 
 Mandatory repository gates:
 

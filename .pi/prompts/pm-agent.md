@@ -23,7 +23,7 @@ The authoritative sprint issue/file must include:
 - a Contract Impact Check covering the public .NET API, CLI syntax/behavior, generated migration layout and SQL semantics, database safety, docs, samples, and tests;
 - for parity or migration work, a source-delta matrix with exact paths/references;
 - explicit decisions or blockers for intentional deviations;
-- implementation-ready tasks with ID, type, assigned worker, dependencies, exact files to read/change, acceptance criteria, deterministic verification, commit hint, and worker skill path;
+- implementation-ready tasks with ID, type, assigned worker, dependencies, exact files to read/change, acceptance criteria, deterministic verification, commit hint, and worker skill path; explicitly assign test/harness ownership, protect locked contract tests, and distinguish expected red-to-green missing-behavior evidence from already-green preservation checks;
 - quality gates as phases rather than task-board items;
 - final smoke commands appropriate to the scope, normally `dotnet cake --target=Build` followed by `dotnet cake --target=Test`, plus docs build when `_docs/` changes;
 - the original acceptance source that the final acceptance-verification checklist must use.

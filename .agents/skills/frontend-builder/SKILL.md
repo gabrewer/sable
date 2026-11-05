@@ -18,6 +18,6 @@ npm --prefix _docs run docs:build
 
 Review both source and generated diffs. Use `npm --prefix _docs install` for approved dependency changes; never edit `package.json` directly.
 
-There is no browser application or Playwright suite in this repository, so do not manufacture frontend/E2E requirements unless an approved task introduces them. Never alter tests assigned to another worker.
+There is no browser application or Playwright suite in this repository, so do not manufacture frontend/E2E requirements unless an approved task introduces them. You may create or update tests explicitly assigned by the task; tests locked against the approved contract or assigned to another worker are protected. Never weaken, remove, skip, or change locked expectations to accommodate implementation. Report contract mismatches to the test owner and reviewer before changing a locked test. Assigned test changes receive independent review.
 
 For remediation, modify only task-owned files. Update the selected backend with build evidence and breadcrumbs. Do not commit; the git-committer phase owns commits.
