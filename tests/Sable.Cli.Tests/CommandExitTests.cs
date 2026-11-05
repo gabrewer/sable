@@ -50,6 +50,109 @@ public class CommandExitTests : IDisposable
         Assert.False(File.Exists(outputFile));
     }
 
+    [Theory]
+    [InlineData("script")]
+    [InlineData("backfill")]
+    public async Task CatalogGuardedHistorySucceedsAtCommandBoundary(string command)
+    {
+        var project = CreateProjectWithUnsupportedMigration();
+        var source = CatalogGuardedSchemaPreambleTests.Preamble()
+            + "\nCREATE TABLE sample.items (id integer);";
+        File.WriteAllText(MigrationPath(), source);
+        var outputFile = Path.Combine(_directory, "result.sql");
+        var result = await RunCompositionCommand(command, project, outputFile);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("Successfully saved", result.Output);
+        var output = await File.ReadAllTextAsync(outputFile);
+        if (command == "script")
+        {
+            Assert.Contains(CatalogGuardedSchemaPreambleTests.Preamble(), output, StringComparison.Ordinal);
+            Assert.True(
+                output.IndexOf("pg_catalog.pg_namespace", StringComparison.Ordinal)
+                    < output.IndexOf("DO $sable$", StringComparison.Ordinal)
+            );
+        }
+        else
+        {
+            Assert.DoesNotContain("pg_catalog.pg_namespace", output);
+            Assert.Contains("INSERT INTO sample.__sable_migrations", output);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RejectedLaterMigrationDoesNotCreateOrOverwriteOutput(bool existingOutput)
+    {
+        var project = CreateProjectWithUnsupportedMigration();
+        File.WriteAllText(MigrationPath(), "CREATE TABLE sample.first_item (id integer);");
+        var invalidFile = Path.Combine(Path.GetDirectoryName(MigrationPath())!, "20261104000000_Rejected.sql");
+        File.WriteAllText(
+            invalidFile,
+            CatalogGuardedSchemaPreambleTests.Preamble().Replace("nspname = 'sample'", "nspname = 'other'")
+        );
+        var outputFile = Path.Combine(_directory, "result.sql");
+        var originalBytes = new byte[] { 0xEF, 0xBB, 0xBF, 0x41, 0x0D, 0x0A };
+        if (existingOutput)
+        {
+            await File.WriteAllBytesAsync(outputFile, originalBytes);
+        }
+        var result = await RunCompositionCommand("script", project, outputFile);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("Sable cannot safely wrap migration '20261104000000_Rejected'", result.Output);
+        Assert.DoesNotContain("Successfully saved", result.Output);
+        if (existingOutput)
+        {
+            Assert.Equal(originalBytes, await File.ReadAllBytesAsync(outputFile));
+        }
+        else
+        {
+            Assert.False(File.Exists(outputFile));
+        }
+    }
+
+    private string MigrationPath()
+    {
+        return Path.Combine(_directory, "sable", "Test", "migrations", "20260710000000_Unsupported.sql");
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunCompositionCommand(
+        string command,
+        string project,
+        string output
+    )
+    {
+        var start = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+        };
+        foreach (var argument in new[]
+        {
+            typeof(Migration).Assembly.Location, "migrations", command, "--project", project,
+            "--database", "Test", "--output", output,
+        })
+        {
+            start.ArgumentList.Add(argument);
+        }
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(true);
+            await process.WaitForExitAsync();
+            throw new TimeoutException("Composition command exceeded 30 seconds.");
+        }
+        return (process.ExitCode, (await stdout) + (await stderr));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))
