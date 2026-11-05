@@ -377,7 +377,6 @@ internal static class SafeSchemaPreambleParser
         return createReader.IsAtEnd()
             && catalogSchemaName.Length > 0
             && !catalogSchemaName.Contains('\0')
-            && Encoding.UTF8.GetByteCount(catalogSchemaName) <= 63
             && configuredSchema.Length > 0
             && createdSchema.Length > 0
             && string.Equals(
