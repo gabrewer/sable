@@ -4,9 +4,9 @@ A separate runnable producer fixture for the newer Marten/Weasel schema preamble
 
 ## Producer provenance
 
-- Marten: **9.50.3**, added through `dotnet add package`.
-- Resolved Weasel.Postgresql/Core/Storage: **9.45.0**; dependency graph recorded in `packages.lock.json`.
-- Sable CLI source used to generate the baseline: **`f718d88e790b2f3ab9bb344a6bd58fb3a680febf`** (local development build, not a published tool version).
+- Marten: **9.57.0**, added through `dotnet add package`.
+- Resolved Weasel.Postgresql/Core/Storage: **9.48.0**; dependency graph recorded in `packages.lock.json`.
+- Sable CLI source used to generate the baseline: **`5361376eed6c3be4ed715abaedd61f098a7a6d65`** (local development build, not a published tool version). The previous 9.50.3 / Weasel 9.45.0 baseline is preserved in Git history.
 - Generated through Sable `init` on 2026-11-05 against an owned disposable `postgres:15.1` shadow container.
 - Subject selector: `marten://store/`; generated directory: `sable/Marten`; schema: `catalog_guarded_schema_preamble_sample`.
 
