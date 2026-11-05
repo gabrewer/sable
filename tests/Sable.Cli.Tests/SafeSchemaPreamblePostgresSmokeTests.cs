@@ -3,6 +3,7 @@
 
 using DotNet.Testcontainers.Builders;
 using Npgsql;
+using Sable.Cli.Tests.Support;
 using Xunit;
 
 namespace Sable.Cli.Tests;
@@ -23,26 +24,30 @@ public class SafeSchemaPreamblePostgresSmokeTests
             .WithEnvironment("POSTGRES_USER", "postgres")
             .WithEnvironment("POSTGRES_PASSWORD", password)
             .WithPortBinding(5432, true)
+            .WithLabel("sable-verification-run", SchemaPreambleCliFixture.VerificationRunId)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5432))
             .WithCleanUp(true)
             .Build();
 
         await container.StartAsync();
+        Assert.True(container.Hostname is "localhost" or "127.0.0.1" or "::1", "Only a local disposable target is permitted.");
         var connectionString =
             $"Host=localhost;Port={container.GetMappedPublicPort(5432)};Username=postgres;Password={password};Database={databaseName};Pooling=false";
         await WaitUntilReady(connectionString);
 
         var sampleProject = FindSampleProject();
         var representativeMigrationId = FindRepresentativeMigrationId(sampleProject);
-        var manager = new MartenMigrationManager(new NullConsoleLogger());
-        var script = await manager.CreateMigrationScript(
-            sampleProject,
-            SableCliConstants.DefaultDatabaseName
-        );
+        for (var replay = 0; replay < 2; replay++)
+        {
+            var result = await SchemaPreambleCliFixture.RunCli(
+                ["database", "update", connectionString, "--project", sampleProject,
+                    "--database", SableCliConstants.DefaultDatabaseName],
+                [connectionString, password]
+            );
+            result.AssertUpdated();
+        }
 
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
-        await Execute(dataSource, script);
-        await Execute(dataSource, script);
 
         Assert.Equal(
             "2026-07-26 12:34:56",
@@ -121,23 +126,10 @@ public class SafeSchemaPreamblePostgresSmokeTests
         }
     }
 
-    private static async Task Execute(NpgsqlDataSource dataSource, string script)
-    {
-        await using var command = dataSource.CreateCommand(script);
-        await command.ExecuteNonQueryAsync();
-    }
-
     private static async Task<T> Query<T>(NpgsqlDataSource dataSource, string sql)
     {
         await using var command = dataSource.CreateCommand(sql);
         return (T)(await command.ExecuteScalarAsync())!;
-    }
-
-    private sealed class NullConsoleLogger : IConsoleLogger
-    {
-        public void LogInfo(string message) { }
-
-        public void LogError(string message) { }
     }
 
     private sealed class PostgresSmokeFactAttribute : FactAttribute
