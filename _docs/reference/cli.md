@@ -61,9 +61,9 @@ sable migrations script  [OPTIONS]
 
 ### Leading `DO` statements
 
-The `migrations add`, `migrations script`, and `database update` workflows keep recognized idempotent schema-creation preambles at PostgreSQL's top level while guarding the rest of the migration. This support is deliberately narrow; it does not hoist arbitrary `DO` statements or suppress schema creation.
+The `migrations add`, `migrations script`, and `database update` workflows keep recognized idempotent schema-creation preambles at PostgreSQL's top level while guarding the rest of the migration. This support is deliberately narrow; it does not hoist arbitrary `DO` statements or suppress schema creation. Alongside historical forms, it recognizes the generated `IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname = '...')` form only when the catalog value, dynamic schema-create target, and configured schema identify the same schema, with both approved exception handlers intact. Catalog values are case-sensitive; identifier quoting must not be copied into the catalog value.
 
-If idempotence wrapping is enabled and a migration begins with an unsupported or malformed top-level `DO`, Sable returns exit code `1` before creating a script/migration artifact or executing migration SQL:
+If idempotence wrapping is enabled and a migration begins with an unsupported or malformed top-level `DO`, Sable returns exit code `1` before creating a script/migration artifact or executing migration SQL. A later rejected migration prevents earlier history from executing, and an existing requested output file is not overwritten:
 
 ```text
 Sable cannot safely wrap migration '<migration-id>' because it begins with an unsupported top-level DO statement. Only a recognized safe schema-creation preamble can be moved outside the idempotence guard. Use Sable's no-idempotence workflow only when the migration is independently idempotent.
