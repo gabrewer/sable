@@ -2,6 +2,9 @@
 // Distributed under the terms of the MIT license.
 
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Npgsql;
@@ -11,13 +14,28 @@ namespace Sable.Cli.Tests.Support;
 
 internal sealed class SchemaPreambleCliFixture : IAsyncDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), $"sable-catalog-cli-{Guid.NewGuid():N}");
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), $"sable-catalog-cli-{VerificationRunId}-{Guid.NewGuid():N}");
     private readonly string _password = Guid.NewGuid().ToString("N");
     private readonly List<string> _secrets = [];
+    private readonly List<string> _sampleCopies = [];
+    private readonly HashSet<string> _shadowDatabases = [];
     private readonly IContainer _container;
 
-    internal static string VerificationRunId { get; } =
-        Environment.GetEnvironmentVariable("SABLE_SCHEMA_PREAMBLE_VERIFICATION_RUN_ID") ?? Guid.NewGuid().ToString("N");
+    internal static string VerificationRunId { get; } = ReadVerificationRunId();
+
+    private static string ReadVerificationRunId()
+    {
+        var value = Environment.GetEnvironmentVariable("SABLE_SCHEMA_PREAMBLE_VERIFICATION_RUN_ID");
+        if (value is null)
+        {
+            return Guid.NewGuid().ToString("N");
+        }
+        if (!Guid.TryParseExact(value, "N", out var id))
+        {
+            throw new InvalidOperationException("Verification run identity must be a GUID in N format.");
+        }
+        return id.ToString("N");
+    }
 
     public SchemaPreambleCliFixture()
     {
@@ -103,6 +121,72 @@ internal sealed class SchemaPreambleCliFixture : IAsyncDisposable
         return new HistoryProject(project, migrations, schema);
     }
 
+    public HistoryProject CopyRunnableSample()
+    {
+        var sourceProject = CatalogGuardedSchemaPreambleSampleCompositionTests.ProjectFile();
+        var source = Path.GetDirectoryName(sourceProject)!;
+        var directory = Path.Combine(Path.GetDirectoryName(source)!, $".catalog-guarded-e2e-{VerificationRunId}-{Guid.NewGuid():N}");
+        Assert.False(Directory.Exists(directory));
+        _sampleCopies.Add(directory);
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, file);
+            if (relative.Split(Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj"))
+            {
+                continue;
+            }
+            var destination = Path.Combine(directory, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination);
+        }
+        return new HistoryProject(
+            Path.Combine(directory, Path.GetFileName(sourceProject)),
+            Path.Combine(directory, "sable", "Marten", "migrations"),
+            CatalogGuardedSchemaPreambleSampleCompositionTests.Schema
+        );
+    }
+
+    public string CreateShadowOptions()
+    {
+        var database = $"sable_shadow_{Guid.NewGuid():N}";
+        _shadowDatabases.Add(database);
+        var password = Guid.NewGuid().ToString("N");
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        var connection = $"Host=127.0.0.1;Port={port};Username=postgres;Password={password};Database={database};Pooling=false";
+        _secrets.AddRange([connection, password]);
+        Directory.CreateDirectory(_directory);
+        var file = Path.Combine(_directory, $"shadow-{database}.json");
+        File.WriteAllText(file, JsonSerializer.Serialize(new
+        {
+            Image = "postgres:15.1",
+            PortBindings = new[] { new { HostPort = port, ContainerPort = 5432 } },
+            EnvironmentVariables = new Dictionary<string, string>
+            {
+                ["PGPORT"] = "5432",
+                ["POSTGRES_DB"] = database,
+                ["POSTGRES_USER"] = "postgres",
+                ["POSTGRES_PASSWORD"] = password,
+                ["SABLE_VERIFICATION_RUN_ID"] = VerificationRunId,
+            },
+            ConnectionString = connection,
+        }));
+        return file;
+    }
+
+    public string TemporaryFile(string name)
+    {
+        Directory.CreateDirectory(_directory);
+        return Path.Combine(_directory, name);
+    }
+
+    public Task<CliResult> Command(string[] arguments, IReadOnlyDictionary<string, string> environment = null)
+    {
+        return RunCli(arguments, _secrets, environment);
+    }
+
     public Task<CliResult> Update(HistoryProject history, string connectionString = null)
     {
         return RunCli(
@@ -132,7 +216,11 @@ internal sealed class SchemaPreambleCliFixture : IAsyncDisposable
         return (T)(await command.ExecuteScalarAsync(timeout.Token))!;
     }
 
-    public static async Task<CliResult> RunCli(string[] arguments, IEnumerable<string> secrets)
+    public static async Task<CliResult> RunCli(
+        string[] arguments,
+        IEnumerable<string> secrets,
+        IReadOnlyDictionary<string, string> environment = null
+    )
     {
         var start = new ProcessStartInfo("dotnet")
         {
@@ -148,6 +236,13 @@ internal sealed class SchemaPreambleCliFixture : IAsyncDisposable
         start.Environment.Remove(SableConstants.ConnectionStringOverride);
         start.Environment.Remove("SABLE_SAMPLE_INCLUDE_PENDING_CHANGE");
         start.Environment.Remove("SABLE_CATALOG_GUARDED_SAMPLE_INCLUDE_PENDING_CHANGE");
+        if (environment is not null)
+        {
+            foreach (var (name, value) in environment)
+            {
+                start.Environment[name] = value;
+            }
+        }
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
@@ -170,17 +265,75 @@ internal sealed class SchemaPreambleCliFixture : IAsyncDisposable
         return new CliResult(process.ExitCode, output);
     }
 
+    private async Task RemoveOwnedShadowContainers()
+    {
+        if (_shadowDatabases.Count == 0)
+        {
+            return;
+        }
+        var ids = await RunDocker(["ps", "-aq", "--filter", "ancestor=postgres:15.1"]);
+        foreach (var id in ids.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var environment = await RunDocker(["inspect", "--format", "{{range .Config.Env}}{{println .}}{{end}}", id]);
+            if (environment.Split(['\r', '\n']).Any(line => _shadowDatabases.Any(database => line == "POSTGRES_DB=" + database)))
+            {
+                await RunDocker(["rm", "-f", id]);
+            }
+        }
+    }
+
+    private static async Task<string> RunDocker(string[] arguments)
+    {
+        var start = new ProcessStartInfo("docker")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (var argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(true);
+            await process.WaitForExitAsync();
+            throw new TimeoutException("Owned Docker cleanup timed out.");
+        }
+        await error;
+        Assert.True(process.ExitCode == 0, "Could not inspect or clean owned shadow resources.");
+        return await output;
+    }
+
     public async ValueTask DisposeAsync()
     {
         try
         {
-            await _container.DisposeAsync();
+            await RemoveOwnedShadowContainers();
         }
         finally
         {
-            if (Directory.Exists(_directory))
+            try
             {
-                Directory.Delete(_directory, true);
+                await _container.DisposeAsync();
+            }
+            finally
+            {
+                foreach (var directory in _sampleCopies.Append(_directory))
+                {
+                    if (Directory.Exists(directory))
+                    {
+                        Directory.Delete(directory, true);
+                    }
+                }
             }
         }
     }
