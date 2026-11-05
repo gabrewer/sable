@@ -79,9 +79,9 @@ Defines and builds the contract between frontend and backend.
 
 Writes tests for a given task — before any implementation exists.
 
-- Tests must fail 100% when written. If any test passes at write time, that is a hard stop
+- Classify test intent before implementation: tests demonstrating missing behavior must fail for the expected reason before the fix and pass afterward; preservation tests for already-supported behavior may start green and must stay green. Record these separately. If a missing-behavior test unexpectedly passes, investigate and report the gap in evidence; never manufacture a failure or count it as red-to-green proof.
 - Works against the API contract and domain model
-- **Backend tasks**: xUnit **unit tests only** — pure domain logic, aggregates, events, handlers. No Docker, no Aspire stack, no HTTP calls. Integration tests are out of scope and run manually.
+- **Backend tasks**: xUnit **unit tests only** — deterministic logic and local fixtures. No Docker, live databases, Aspire stack, or HTTP calls in this role. Explicitly assign opt-in integration tests and verification harnesses to an integration-capable builder task, with exact test ownership, approved disposable targets, and verification commands.
 - **Frontend tasks**: Vitest for component logic and hooks — no browser, no real API calls
 - Playwright is **not** the test-writer's responsibility — see `frontend-builder` below
 - **Tools**: Read, Write, Glob, Grep, Bash (for running tests only)
@@ -92,7 +92,7 @@ Owns the server-side application.
 
 - Builds API endpoints, domain logic, data access, authentication, infrastructure
 - Works against the API contract and domain model
-- **Never alters a test** — if a test seems wrong, it flags it and stops
+- May create or update tests explicitly assigned by the task, including integration tests and verification harnesses. Tests locked against the approved contract or assigned to another worker are protected: never weaken, remove, skip, or change their expectations to accommodate implementation. Report a conflict to the test owner and reviewer before changing a locked test.
 - Done when all task tests pass
 - Leaves breadcrumbs for every architectural decision
 - **Scope boundary**: when given review feedback, reads only the files explicitly named in the feedback and makes exactly the changes described. Does not explore the broader codebase or refactor adjacent code.
@@ -105,7 +105,7 @@ Owns the client-side application.
 
 - Builds components, routes, pages, client-side state, and API client code
 - Works against the API contract — never invents endpoints
-- **Never alters a test** — if a test seems wrong, it flags it and stops
+- May create or update tests explicitly assigned by the task, including integration tests and verification harnesses. Tests locked against the approved contract or assigned to another worker are protected: never weaken, remove, skip, or change their expectations to accommodate implementation. Report a conflict to the test owner and reviewer before changing a locked test.
 - Done when all task Vitest tests pass **and** Playwright E2E tests are written
 - After implementation is complete, writes Playwright E2E tests in `frontend/e2e/<task-id>/`. These target the real running stack (no mocking) and are the developer's manual regression suite (`bun run test:e2e`). They are not run by the pipeline.
 - Leaves breadcrumbs for every significant UI decision
@@ -499,8 +499,8 @@ The `api-developer` defines or updates the API contract for this Sprint's tasks.
 
 For each task in the Sprint:
 
-1. **`test-writer`** — writes tests that must fail 100% at write time
-2. **Builders** (`backend-builder` / `frontend-builder`) — write code until all tests pass
+1. **`test-writer`** — writes assigned deterministic tests before implementation; records expected failures for missing behavior separately from already-green preservation checks. For tasks outside this role's scope, record why this phase is not applicable and identify the assigned test/harness owner instead.
+2. **Builders** (`backend-builder` / `frontend-builder`) — implement against locked tests and may author explicitly assigned tests/harnesses. They must not weaken protected tests to make their implementation pass; assigned test changes receive independent review.
 3. **Build gate** — `dotnet build` must exit 0 before the destroyer runs. If it fails, the error is fed back to the builder. Code that does not compile never reaches the reviewer.
 4. **`destroyer`** — adversarial testing scoped to this task's code only. Only critical/high findings are actionable. Medium/low are noted but do not block.
 5. **`review-agent`** — triages destroyer findings, routes fixes to builders, escalates big issues

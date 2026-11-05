@@ -8,7 +8,7 @@ allowed-tools: read bash grep find ls
 
 Read `AGENTS.md`, `TEAM-ORCHESTRATION.md`, the task, approved domain/API contract, task-owned diff, test/build evidence, and current destroy report. Remain read-only.
 
-Verify correctness and compatibility for public .NET APIs, CLI contracts, migration file layout, SQL semantics, error/cancellation behavior, database safety, tests, docs generation, and scope discipline. Confirm actionable destroyer findings are critical/high and caused by this task.
+Verify correctness and compatibility for public .NET APIs, CLI contracts, migration file layout, SQL semantics, error/cancellation behavior, database safety, tests, docs generation, and scope discipline. Confirm test changes are explicitly assigned and protect the approved contract: no weakened, removed, skipped, or altered locked expectations merely to accommodate implementation. Check genuine pre-fix/post-fix evidence for missing behavior separately from already-green preservation checks; do not require manufactured failures. Builder-authored tests/harnesses receive the same independent scrutiny as implementation. Confirm actionable destroyer findings are critical/high and caused by this task.
 
 Mark findings in untouched pre-existing code `DEFERRED` unless they actively break this task through a security issue or domain-contract violation. Do not route medium/low notes to builders. Do not request broad cleanup, adjacent refactors, or edits outside task-owned files.
 

@@ -47,7 +47,8 @@ The Cake `Test` target uses `--no-build --no-restore`; run the `Build` target fi
 - Treat CLI command names, arguments, options, exit codes, generated file layout, directives, and SQL ordering as public contracts. Relevant code lives in `src/Sable.Cli/Program.cs`, `Commands/`, `Settings/`, `MartenMigrationManager.cs`, `Migration.cs`, and `Templates.cs`.
 - Follow `.editorconfig`, including four-space C# indentation, `var` preferences, braces, and UTF-8 BOM for C# files.
 - Add or update xUnit tests in the matching test project. Keep deterministic logic unit-testable; do not introduce Docker or live database dependencies into ordinary unit tests.
-- Never change a test merely to make an implementation pass. If an assigned test conflicts with an approved contract, stop and report the mismatch.
+- Workers may create or update tests explicitly assigned by the task, including opt-in integration tests and verification harnesses. Tests locked against an approved contract or assigned to another worker are protected: never weaken, remove, skip, or change their expectations merely to make an implementation pass. Report contract mismatches to the test owner and reviewer before changing a locked test.
+- Classify test intent before implementation: tests demonstrating missing behavior must fail for the expected reason before the fix and pass afterward; preservation tests for already-supported behavior may start green and must stay green. Record the evidence separately; never manufacture failures or claim an already-green test as red-to-green proof.
 - Do not edit package references directly for dependency changes. Use `dotnet add package` or `npm --prefix _docs install`, as applicable, and include lockfile changes.
 - Do not edit generated `docs/` pages directly. `docs/design/` is the source-authored exception for durable PRDs and design records. Change `_docs/` for site content, run `npm --prefix _docs run docs:build`, and review generated changes.
 
