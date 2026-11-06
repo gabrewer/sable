@@ -357,6 +357,13 @@ internal static class SafeSchemaPreambleParser
             return false;
         }
 
+        // Ordinary SQL string literals interpret backslashes differently when
+        // standard_conforming_strings is off. Their identity is then ambiguous.
+        if (catalogSchemaName.Contains('\\') || createSchemaSql.Contains('\\'))
+        {
+            return false;
+        }
+
         var configuredReader = new SqlReader(databaseSchemaName, strictTrivia: true);
         var createReader = new SqlReader(createSchemaSql, strictTrivia: true);
         if (
