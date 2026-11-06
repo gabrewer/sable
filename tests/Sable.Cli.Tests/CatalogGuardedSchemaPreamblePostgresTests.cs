@@ -138,6 +138,39 @@ public class CatalogGuardedSchemaPreamblePostgresTests
         }
     }
 
+    [CatalogPostgresFact]
+    [Trait("Category", "CatalogGuardedPostgres")]
+    public async Task BackslashLiteralsAreRejectedWhenStandardConformingStringsIsOff()
+    {
+        await using var fixture = new SchemaPreambleCliFixture();
+        await fixture.Start();
+        var connectionString = new NpgsqlConnectionStringBuilder(fixture.ConnectionString)
+        {
+            Options = "-c standard_conforming_strings=off",
+        }.ConnectionString;
+        Assert.Equal("off", await fixture.Query<string>("SHOW standard_conforming_strings", connectionString));
+        Assert.Equal("6108", await fixture.Query<string>("SELECT encode(convert_to('a\\b', 'UTF8'), 'hex')", connectionString));
+
+        const string schema = "\"a\\b\"";
+        var history = fixture.CreateHistory(schema);
+        var preamble = CatalogGuardedSchemaPreambleTests.Preamble("a\\b", schema);
+        File.WriteAllText(Path.Combine(history.MigrationsDirectory, "20990101000000_Backslash.sql"), preamble);
+        var result = await fixture.Update(history, connectionString);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains("Sable cannot safely wrap migration '20990101000000_Backslash'", result.Output);
+        Assert.DoesNotContain("Successfully updated", result.Output);
+        Assert.Equal(0L, await fixture.Query<long>("SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname IN (chr(97) || chr(8) || chr(98), chr(97) || chr(92) || chr(98))"));
+
+        // A normal preamble remains usable under the same session setting.
+        var safe = fixture.CreateHistory(Schema);
+        File.WriteAllText(Path.Combine(safe.MigrationsDirectory, "20990102000000_Safe.sql"),
+            CatalogGuardedSchemaPreambleTests.Preamble(Schema, Schema) + $"\nCREATE TABLE {Schema}.literal_probe (id integer);");
+        await SetupSchemaAndHistory(fixture);
+        (await fixture.Update(safe, connectionString)).AssertUpdated();
+        Assert.True(await fixture.Query<bool>($"SELECT to_regclass('{Schema}.literal_probe') IS NOT NULL"));
+        Assert.Equal(1L, await fixture.Query<long>($"SELECT count(*) FROM {Schema}.__sable_migrations"));
+    }
+
     private static void AddNonIdempotentProbe(SchemaPreambleCliFixture.HistoryProject history)
     {
         File.WriteAllText(Path.Combine(history.MigrationsDirectory, "20990101000000_TestReplayProbe.sql"),

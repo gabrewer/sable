@@ -71,6 +71,15 @@ public class CatalogGuardedSchemaPreambleSafetyTests
         Assert.Contains(preamble, fixture.Create(preamble, identifier).GetIdempotentScript(), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("a\\b")]
+    [InlineData("a\\\\b")]
+    public void BackslashesInCatalogAndDynamicLiteralsAreRejected(string schema)
+    {
+        var identifier = "\"" + schema + "\"";
+        AssertRejected(CatalogGuardedSchemaPreambleTests.Preamble(schema, identifier), identifier);
+    }
+
     [Fact]
     public void CatalogValueWithNulIsRejected()
     {

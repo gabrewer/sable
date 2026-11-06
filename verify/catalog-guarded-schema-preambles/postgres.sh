@@ -37,7 +37,7 @@ counters = ET.parse(sys.argv[1]).getroot().find('.//{*}Counters')
 if counters is None:
     raise RuntimeError('Missing test execution counters.')
 executed, passed, total = (int(counters.get(name, '0')) for name in ('executed', 'passed', 'total'))
-if executed < 6 or passed != executed or total != executed:
-    raise RuntimeError('Expected all six owned PostgreSQL cases to execute and pass, not skip.')
+if executed < 7 or passed != executed or total != executed:
+    raise RuntimeError('Expected all seven owned PostgreSQL cases to execute and pass, not skip.')
 print(f'PASS: {passed} CLI-driven disposable PostgreSQL cases executed; discovery/skips are not evidence.')
 PY
