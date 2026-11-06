@@ -30,10 +30,10 @@ jobs:
         with:
           lfs: true
           fetch-depth: 0
-      - name: "Install .NET Core SDK"
+      - name: "Install .NET SDK"
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          global-json-file: global.json
       - name: "Dotnet Tool Restore"
         run: dotnet tool restore
         shell: bash
@@ -66,13 +66,19 @@ jobs:
         with:
           name: "BuildArtifacts"
       - name: "Dotnet NuGet Push"
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          for package in *.nupkg; do
-            if [[ "$package" != *preview* ]]; then
-              dotnet nuget push "$package" \
-                --source https://api.nuget.org/v3/index.json \
-                --skip-duplicate \
-                --api-key ${{ secrets.NUGET_API_KEY }};
-            fi;
+          set -euo pipefail
+          : "${NUGET_API_KEY:?NUGET_API_KEY is required}"
+          version="${GITHUB_REF_NAME#v}"
+          packages=("Sable.${version}.nupkg" "Sable.Cli.${version}.nupkg")
+          for package in "${packages[@]}"; do
+            test -f "$package" || { echo "Missing expected package: $package" >&2; exit 1; }
+          done
+          for package in "${packages[@]}"; do
+            dotnet nuget push "$package" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "$NUGET_API_KEY"
           done
         shell: bash
